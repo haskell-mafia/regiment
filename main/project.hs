@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           BuildInfo_ambiata_project
+import           DependencyInfo_ambiata_project
 
 import           Options.Applicative
 
@@ -19,6 +20,8 @@ main = do
     case sc of
       VersionCommand ->
         putStrLn buildInfoVersion >> exitSuccess
+      DependencyCommand ->
+        mapM_ putStrLn dependencyInfo
       RunCommand DryRun c ->
         print c >> exitSuccess
       RunCommand RealRun c ->
