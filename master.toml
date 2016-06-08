@@ -3,10 +3,10 @@
   version = 1
   sha1 = "c3e341a734f0938ab5352563db54d5db3137f766"
 [build.dist]
-  GHC_VERSION="7.8.4"
+  GHC_VERSION="7.10.2"
   CABAL_VERSION = "1.22.4.0"
 [build.branches]
-  GHC_VERSION="7.8.4"
+  GHC_VERSION="7.10.2"
   CABAL_VERSION = "1.22.4.0"
 
 [build.dist-7-8]
