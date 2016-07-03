@@ -14,7 +14,6 @@ library
   build-depends:
                       base                            >= 3          && < 5
                     , ambiata-p
-                    , either                          >= 4.4.1      && < 4.5
                     , text                            == 1.2.*
 
   ghc-options:
