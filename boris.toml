@@ -13,4 +13,3 @@
 
 [build.all-rebased]
   command = [["rebased"]]
-
