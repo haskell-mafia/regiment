@@ -15,7 +15,7 @@
   CABAL_VERSION = "1.22.4.0"
   # PUBLISH = "true"
   # PUBLISH_S3 = "$AMBIATA_ARTEFACTS_MASTER"
-  # PUBLISH_EXECUTABLES = "project"
+  # PUBLISH_EXECUTABLES = "regiment"
 
 [build.branches-7-10]
   HADDOCK = "true"
@@ -25,4 +25,12 @@
   CABAL_VERSION = "1.22.4.0"
   # PUBLISH = "true"
   # PUBLISH_S3 = "$AMBIATA_ARTEFACTS_BRANCHES"
-  # PUBLISH_EXECUTABLES = "project"
+  # PUBLISH_EXECUTABLES = "regiment"
+
+[build.dist-8-0]
+  GHC_VERSION = "8.0.1"
+  CABAL_VERSION = "1.24.0.0"
+
+[build.branches-8-0]
+  GHC_VERSION = "8.0.1"
+  CABAL_VERSION = "1.24.0.0"

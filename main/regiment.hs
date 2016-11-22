@@ -1,8 +1,8 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import           BuildInfo_ambiata_project
-import           DependencyInfo_ambiata_project
+import           BuildInfo_ambiata_regiment
+import           DependencyInfo_ambiata_regiment
 
 import           Options.Applicative
 
