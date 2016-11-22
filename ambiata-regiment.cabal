@@ -1,14 +1,14 @@
-name:                  ambiata-project
+name:                  ambiata-regiment
 version:               0.0.1
 license:               AllRightsReserved
 author:                Ambiata <info@ambiata.com>
 maintainer:            Ambiata <info@ambiata.com>
 copyright:             (c) 2015 Ambiata.
-synopsis:              project
+synopsis:              regiment
 category:              System
 cabal-version:         >= 1.8
 build-type:            Custom
-description:           project
+description:           regiment
 
 library
   build-depends:
@@ -23,22 +23,22 @@ library
                     src
 
   exposed-modules:
-                    Paths_ambiata_project
-                    Project
+                    Paths_ambiata_regiment
+                    Regiment
 
-executable project
+executable regiment
   ghc-options:
                     -Wall -threaded -O2
 
   hs-source-dirs:
-                    gen                    
+                    gen
 
   main-is:
-                    ../main/project.hs
+                    ../main/regiment.hs
 
   build-depends:
                       base
-                    , ambiata-project
+                    , ambiata-regiment
                     , ambiata-p
                     , ambiata-x-optparse
                     , optparse-applicative            == 0.11.*
@@ -60,7 +60,7 @@ test-suite test
 
   build-depends:
                       base                            >= 3          && < 5
-                    , ambiata-project
+                    , ambiata-regiment
                     , ambiata-disorder-core
                     , ambiata-disorder-corpus
                     , ambiata-p
@@ -82,7 +82,7 @@ test-suite test-io
 
   build-depends:
                       base                            >= 3          && < 5
-                    , ambiata-project
+                    , ambiata-regiment
                     , ambiata-disorder-core
                     , ambiata-disorder-corpus
                     , ambiata-p
@@ -105,5 +105,5 @@ test-suite test-cli
 
   build-depends:
                       base                            >= 3          && < 5
-                    , ambiata-project
+                    , ambiata-regiment
                     , ambiata-disorder-core
