@@ -13,7 +13,10 @@ description:           regiment
 library
   build-depends:
                       base                            >= 3          && < 5
+                    , ambiata-aqueduct
                     , ambiata-p
+                    , ambiata-x-eithert
+                    , bytestring                      == 0.10.*
                     , text                            == 1.2.*
 
   ghc-options:
@@ -25,6 +28,8 @@ library
   exposed-modules:
                     Paths_ambiata_regiment
                     Regiment
+                    Regiment.Data
+                    Regiment.IO
 
 executable regiment
   ghc-options:
@@ -40,7 +45,10 @@ executable regiment
                       base
                     , ambiata-regiment
                     , ambiata-p
+                    , ambiata-x-attoparsec
+                    , ambiata-x-eithert
                     , ambiata-x-optparse
+                    , attoparsec                      == 0.13.*
                     , optparse-applicative            == 0.11.*
                     , text
 
