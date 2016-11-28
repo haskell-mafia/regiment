@@ -14,7 +14,7 @@ import           Regiment.Data
 
 import           System.IO (IO)
 
-import           X.Control.Monad.Trans.Either (EitherT)
+import           X.Control.Monad.Trans.Either (EitherT, hoistEither)
 
 data SortError =
     SortError
@@ -24,5 +24,5 @@ renderSortError _ =
   "TODO"
 
 sort :: InputFile -> OutputDirectory -> SortColumn -> Separator -> MemoryLimit -> EitherT SortError IO ()
-sort inn out sc sep m = undefined
+sort _inn _out _sc _sep _m = hoistEither . Right $ ()
 
