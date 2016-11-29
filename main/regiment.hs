@@ -17,12 +17,12 @@ import           Regiment.Data
 import           Regiment.IO
 
 import           System.IO
-import           System.Exit
+--import           System.Exit
 
 import           X.Control.Monad.Trans.Either.Exit (orDie)
 import           X.Data.Attoparsec.Text (positiveIntParser)
-import           X.Options.Applicative (cli, Parser, subparser, command', strArgument)
-import           X.Options.Applicative (metavar, help, maybeTextReader, option, auto, short, long, value, pOption)
+import           X.Options.Applicative (cli, command')
+import           X.Options.Applicative (maybeTextReader, pOption)
 
 main :: IO ()
 main = do
