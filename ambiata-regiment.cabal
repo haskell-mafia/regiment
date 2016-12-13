@@ -17,8 +17,12 @@ library
                     , ambiata-p
                     , ambiata-parsley
                     , ambiata-x-eithert
+                    , ambiata-x-vector
                     , bytestring                      == 0.10.*
+                    , primitive                       == 0.6.*
                     , text                            == 1.2.*
+                    , vector                          >= 0.10       && < 0.12
+                    , vector-algorithms               == 0.7.*
 
   ghc-options:
                     -Wall
