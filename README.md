@@ -26,8 +26,8 @@ regiment sort --field-separator ',' --key 1 input-file output-dir
 regiment sort -F ',' -k 1 input-file output-dir
 
 # explicitly specify that format of input-file is standardised
-regiment sort --format standard --key 1 input-file output-dir
-regiment sort -f standard -k 1 input-file output-dir
+regiment sort --format standardsed --key 1 input-file output-dir
+regiment sort -f standardised -k 1 input-file output-dir
 
 # explicitly specify memory upper bound of 2 GB (default unit is MB - use G to specify GB)
 regiment sort --mem-max 2G input-file output-dir
