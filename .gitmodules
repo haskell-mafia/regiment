@@ -10,3 +10,6 @@
 [submodule "lib/aqueduct"]
 	path = lib/aqueduct
 	url = git@github.com:ambiata/aqueduct
+[submodule "lib/parsley"]
+	path = lib/parsley
+	url = git@github.com:ambiata/parsley

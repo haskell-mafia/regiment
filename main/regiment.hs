@@ -30,18 +30,18 @@ main = do
   hSetBuffering stderr LineBuffering
   cli "regiment" buildInfoVersion dependencyInfo parser $ \cmd ->
     case cmd of
-      SortCommand inn out sc sep m ->
+      SortCommand inn out sc sep m f ->
         orDie renderSortError $
-          sort inn out sc sep m
+          sort inn out sc sep m f
 
 parser :: Parser Command
 parser =
   subparser $
     command' "sort" "Sort input file based on sort column(s)."
-      (SortCommand <$> inputFileP <*> outputDirectoryP <*> sortColumnP <*> separatorP <*> memP)
+      (SortCommand <$> inputFileP <*> outputDirectoryP <*> sortColumnP <*> separatorP <*> memP <*> formatP)
 
 data Command =
-  SortCommand InputFile OutputDirectory SortColumn Separator MemoryLimit
+  SortCommand InputFile OutputDirectory SortColumn Separator MemoryLimit FormatKind
   deriving (Eq, Show)
 
 inputFileP :: Parser InputFile
@@ -75,16 +75,6 @@ separatorP =
     , value pipe
     ]
 
-toChar :: Text -> Maybe Word8
-toChar t =
-  case T.unpack t of
-    [c] ->
-      pure . fromIntegral . ord $ c
-    [] ->
-      fail "No separator provided."
-    _ ->
-      fail "Separator must be one character."
-
 memP :: Parser MemoryLimit
 memP =
   fmap MemoryLimit . option (pOption memParser) . mconcat $ [
@@ -97,3 +87,32 @@ memParser :: A.Parser Int
 memParser =
       positiveIntParser <* A.string "G"
   <|> positiveIntParser
+
+formatP :: Parser FormatKind
+formatP =
+  option (maybeTextReader toFileFormat) . mconcat $ [
+      short 'f'
+    , long "format"
+    , help "Specify the format of the file - delimited or standardized, defaults to delimited."
+    , value Delimited
+    ]
+
+toFileFormat :: Text -> Maybe FormatKind
+toFileFormat t =
+  case t of
+    "delimited" -> Just Delimited
+    "standardized" -> Just Standardized
+    _ -> fail "Unrecognised format descriptor."
+
+toChar :: Text -> Maybe Word8
+toChar t =
+  case T.unpack t of
+    [c] ->
+      pure . fromIntegral . ord $ c
+    [] ->
+      fail "No separator provided."
+    _ ->
+      fail "Separator must be one character."
+
+
+

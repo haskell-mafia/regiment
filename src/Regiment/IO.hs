@@ -23,6 +23,6 @@ renderSortError :: SortError -> Text
 renderSortError _ =
   "TODO"
 
-sort :: InputFile -> OutputDirectory -> SortColumn -> Separator -> MemoryLimit -> EitherT SortError IO ()
-sort _inn _out _sc _sep _m = hoistEither . Right $ ()
+sort :: InputFile -> OutputDirectory -> SortColumn -> Separator -> MemoryLimit -> FormatKind -> EitherT SortError IO ()
+sort _inn _out _sc _sep _m _f = hoistEither . Right $ ()
 

@@ -3,11 +3,11 @@
 module Regiment.Data (
     InputFile (..)
   , OutputDirectory (..)
-  , Separator (..)
   , SortColumn (..)
   , MemoryLimit (..)
   , pipe
   , newline
+  , module X
   ) where
 
 import           Data.ByteString (ByteString)
@@ -15,6 +15,8 @@ import qualified Data.ByteString as B
 import           Data.Word (Word8)
 
 import           P
+
+import           Parsley.Xsv.Data as X
 
 import           System.IO (FilePath)
 
@@ -27,11 +29,6 @@ newtype OutputDirectory =
   OutputDirectory {
     outputDirectory :: FilePath
   } deriving (Eq, Show)
-
-newtype Separator =
-  Separator {
-      separator :: Word8
-    } deriving (Eq, Show, Ord)
 
 newtype SortColumn =
   SortColumn {

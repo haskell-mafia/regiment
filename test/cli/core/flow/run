@@ -1,0 +1,27 @@
+#!/bin/sh -eux
+
+REGIMENT=${1:-./dist/build/regiment/regiment}
+
+OUTPUT="$(dirname $0)/../../tmp/test.$$/output"
+INPUT="$(dirname $0)/../../tmp/test.$$/input"
+DATA="$(dirname $0)/../../data"
+
+mkdir -p "$INPUT"
+mkdir -p "$OUTPUT"
+
+sort -t '|' -k1,1 < $DATA/input.psv > $INPUT/input.psv
+
+$REGIMENT sort \
+  --key 1 \
+  $DATA/input.psv $OUTPUT
+
+## check that we have sorted output
+
+if diff $OUTPUT/input.psv $INPUT/input.psv; then
+  echo "WIN: Regiment sort equals shell sort for simple case."
+else
+  echo "LOSE: Regiment sort does not equal shell sort for simple case."
+fi
+
+rm -rf "$INPUT"
+rm -rf "$OUTPUT"
