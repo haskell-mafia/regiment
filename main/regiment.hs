@@ -38,10 +38,10 @@ parser :: Parser Command
 parser =
   subparser $
     command' "sort" "Sort input file based on sort column(s)."
-      (SortCommand <$> inputFileP <*> outputDirectoryP <*> sortColumnP <*> separatorP <*> memP <*> formatP)
+      (SortCommand <$> inputFileP <*> outputDirectoryP <*> many sortColumnP <*> separatorP <*> memP <*> formatP)
 
 data Command =
-  SortCommand InputFile OutputDirectory SortColumn Separator MemoryLimit FormatKind
+  SortCommand InputFile OutputDirectory [SortColumn] Separator MemoryLimit FormatKind
   deriving (Eq, Show)
 
 inputFileP :: Parser InputFile
