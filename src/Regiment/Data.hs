@@ -5,6 +5,7 @@ module Regiment.Data (
   , OutputDirectory (..)
   , SortColumn (..)
   , MemoryLimit (..)
+  , NumColumns (..)
   , pipe
   , newline
   , module X
@@ -38,6 +39,11 @@ newtype SortColumn =
 newtype MemoryLimit =
   MemoryLimit {
     memoryLimit :: Int
+  } deriving (Eq, Show, Ord)
+
+newtype NumColumns =
+  NumColumns {
+    numColumns :: Int
   } deriving (Eq, Show, Ord)
 
 pipe :: Word8
