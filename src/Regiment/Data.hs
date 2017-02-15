@@ -6,6 +6,9 @@ module Regiment.Data (
   , SortColumn (..)
   , MemoryLimit (..)
   , NumColumns (..)
+  , Line (..)
+  , TempDirectory (..)
+  , comma
   , pipe
   , newline
   , module X
@@ -31,6 +34,11 @@ newtype OutputDirectory =
     outputDirectory :: FilePath
   } deriving (Eq, Show)
 
+newtype TempDirectory =
+  TempDirectory {
+    tempDirectory :: FilePath
+  } deriving (Eq, Show)
+
 newtype SortColumn =
   SortColumn {
       sortColumn :: Int
@@ -46,9 +54,19 @@ newtype NumColumns =
     numColumns :: Int
   } deriving (Eq, Show, Ord)
 
+data Line =
+    NonEmpty ByteString
+  | EOF
+  | Empty
+  deriving (Eq, Show, Ord)
+
 pipe :: Word8
 pipe =
   124 {- '|' -}
+
+comma :: Word8
+comma =
+  44 {- ',' -}
 
 newline :: ByteString
 newline =
