@@ -17,7 +17,6 @@ import           Regiment.Data
 import           Regiment.IO
 
 import           System.IO
---import           System.Exit
 
 import           X.Control.Monad.Trans.Either.Exit (orDie)
 import           X.Data.Attoparsec.Text (positiveIntParser)
@@ -81,6 +80,7 @@ memP =
       short 'm'
     , long "mem-max"
     , help "Specify the upper bound of memory to use - default unit is MB, use G to specify GB"
+    , value 2000
     ]
 
 memParser :: A.Parser Int
