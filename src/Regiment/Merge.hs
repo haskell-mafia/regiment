@@ -2,17 +2,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.Merge (
     merge
+  , RegimentResourceError (..)
   ) where
 
 import           Control.Monad.IO.Class (liftIO, MonadIO)
 import           Control.Monad.Trans.Resource (MonadResource (..))
 import qualified Control.Monad.Trans.Resource as R
 
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Conduit as DC
 import qualified Data.Conduit.Binary as DCB
+import qualified Data.Conduit.List as DCL
 import qualified Data.List as DL
 import qualified Data.Map as DM
+import           Data.String (String)
 
 import           P
 
@@ -21,30 +25,32 @@ import           Regiment.Data
 import           System.Directory (getDirectoryContents)
 import           System.FilePath ((</>))
 import           System.IO (IO, FilePath, IOMode(..), Handle, hIsEOF, hGetLine)
-import           System.IO (openBinaryFile, hClose)
+import           System.IO (withFile, openBinaryFile, hClose)
 
 import           X.Control.Monad.Trans.Either (mapEitherT, EitherT, hoistEither)
 
-data RegimentResourceError = RegimentResourceError
+data RegimentResourceError =
+    RegimentResourceNoMinFound String
+  | RegimentResourceUnexpectedEmpty
+  | RegimentResourceUnexpectedEOF
+  deriving (Show)
 
 merge :: TempDirectory -> OutputDirectory -> EitherT RegimentResourceError IO ()
-merge t o = mapEitherT R.runResourceT $ do
+merge t o = do
+ let
+   dir = outputDirectory o
+   outputFile = dir </> "sorted"
+ mapEitherT R.runResourceT $ do
   mapLinesHandles <- constructMap t
 
-  let
-    dir = outputDirectory o
-    outputFile = dir </> "sorted.psv"
-  outputHandle <- open outputFile
 
-  source mapLinesHandles DC.$$ DCB.sinkHandle outputHandle
-
+  source mapLinesHandles DC.=$= DCL.mapM (\x -> (liftIO . BSC.putStrLn $ "chunk") >> pure x) DC.$$ DCB.sinkFile outputFile
+ liftIO $ BSC.putStrLn "Merge done - " >> BS.readFile outputFile >>= BSC.putStrLn
 constructMap :: (MonadResource m, MonadIO m) => TempDirectory -> m (DM.Map Line Handle)
 constructMap (TempDirectory t) = do
-  filePaths <- liftIO $ getDirectoryContents t
-  handles <- mapM open filePaths
-  strs <- liftIO $ mapM hGetLine handles
-  let
-    lines = (NonEmpty . BS.pack) <$> strs
+  filePaths <- liftIO . fmap (filter (flip notElem [".", ".."])) . getDirectoryContents $ t
+  handles <- mapM (open ReadMode) filePaths
+  lines <- liftIO $ mapM readLine handles
   return . DM.fromList $ DL.zip lines handles
 
 source :: DM.Map Line Handle -> DC.Source (EitherT RegimentResourceError (R.ResourceT IO)) BS.ByteString
@@ -54,16 +60,16 @@ source m' = do
     let
       kvm = minView m
     case kvm of
-      Left RegimentResourceError ->
-        DC.yieldM $ hoistEither $ Left RegimentResourceError
+      Left err ->
+        DC.yieldM $ hoistEither $ Left err
       Right ((l, h), m'') -> do
         -- Note m'' is the map with (minKey, handle) removed
         let
           erbs = extractRowFromLineOrBoom l
         case erbs of
-          Left RegimentResourceError ->
-            DC.yieldM . hoistEither $ Left RegimentResourceError
-          Right bs ->
+          Left err ->
+            DC.yieldM . hoistEither $ Left err
+          Right bs -> do
             DC.yieldM . hoistEither $ Right bs
         -- recurse but replace minKey with Empty
         source $ DM.insert Empty h m''
@@ -72,16 +78,17 @@ extractRowFromLineOrBoom :: Line -> Either RegimentResourceError BS.ByteString
 extractRowFromLineOrBoom l =
   case l of
     NonEmpty bs -> Right bs
-    Empty -> Left RegimentResourceError
-    EOF -> Left RegimentResourceError
+    Empty -> Left RegimentResourceUnexpectedEmpty
+    EOF -> Left RegimentResourceUnexpectedEOF
 
-open :: MonadResource m => FilePath -> m Handle
-open f =
-  snd <$> R.allocate (openBinaryFile f WriteMode) hClose
+open :: MonadResource m => IOMode -> FilePath -> m Handle
+open m f =
+  snd <$> R.allocate (openBinaryFile f m) hClose
 
 moreToRead :: DM.Map Line Handle -> Bool
 moreToRead m =
-  (null m) || (null $ DM.filterWithKey (\k _ -> not (k == EOF)) m)
+    not (null $ DM.filterWithKey (\k _ -> not (k == EOF)) m)
+
 
 minView :: DM.Map Line Handle -> Either RegimentResourceError ((Line, Handle), DM.Map Line Handle)
 minView m =
@@ -92,7 +99,7 @@ minView m =
     -- Note: minViewWithKey returns minKey, minValue and the map with this
     -- key, value pair removed
   in
-    maybeToRight RegimentResourceError maybekvm
+    maybeToRight (RegimentResourceNoMinFound $ DM.showTree m) maybekvm
 
 updateMap :: DM.Map Line Handle -> IO (DM.Map Line Handle)
 updateMap m = do
@@ -116,4 +123,4 @@ readLine h = do
   then return EOF
   else do
     str <- hGetLine h
-    return $ NonEmpty (BS.pack str)
+    return $ NonEmpty (BSC.pack str)
