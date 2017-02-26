@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Regiment.Parse (
     toVector
+  , unpack
   ) where
 
 import           Control.Monad.Primitive (PrimState)
@@ -75,7 +76,6 @@ toVector (InputFile inn) f n s (NumColumns c) sc  = do
 
     BS.hGetSome h (1024 * 1024) >>= go (0 :: Int) (0 :: Int)
 
-
 selectSortKeys ::
      (Boxed.Vector BS.ByteString)
   -> Separator
@@ -86,12 +86,13 @@ selectSortKeys parsed (Separator s) sortColumns =
     unparsed = BS.intercalate (BS.singleton s) (Boxed.toList parsed)
 
     maybeSortkeys = L.map (\sc -> parsed Boxed.!? (sortColumn sc)) sortColumns
-    sortKeys = DM.catMaybes maybeSortkeys
+    sks = DM.catMaybes maybeSortkeys
     keyNotFound = and $ L.map isNothing maybeSortkeys
   in
     case keyNotFound of
       True -> Left RegimentParseError
-      False -> Right $ (Boxed.fromList sortKeys) Boxed.++ (Boxed.singleton unparsed)
+      -- returns a vector consisting of sortKeys and payload
+      False -> Right $ (Boxed.singleton unparsed) Boxed.++ (Boxed.fromList sks)
 
 flushVector ::
       Grow.Grow Boxed.MVector (PrimState IO) (Boxed.Vector BS.ByteString)
@@ -100,7 +101,21 @@ flushVector acc = do
    mv <- Grow.unsafeElems acc
    Tim.sort mv
    (v :: Boxed.Vector (Boxed.Vector BS.ByteString)) <- Grow.unsafeFreeze acc
+   -- write to TempFile
    print v
    -- done using 'v'
    Grow.clear acc
+
+unpack :: Boxed.Vector BS.ByteString -> Either RegimentParseError SortKeysWithPayload
+unpack vbs =
+  if (Boxed.length vbs > 2)
+  then
+    let
+      p = Payload $ Boxed.head vbs
+      sks = SortKey <$> Boxed.tail vbs
+    in
+      Right $ SortKeysWithPayload sks p
+  else
+    Left RegimentParseError
+
 
