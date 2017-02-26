@@ -18,9 +18,11 @@ library
                     , ambiata-parsley
                     , ambiata-x-eithert
                     , ambiata-x-vector
+                    , binary                          >= 0.7        && < 0.9
                     , bytestring                      == 0.10.*
                     , primitive                       == 0.6.*
                     , text                            == 1.2.*
+                    , transformers                    >= 0.4        && < 0.6
                     , vector                          >= 0.10       && < 0.12
                     , vector-algorithms               == 0.7.*
 
@@ -100,10 +102,14 @@ test-suite test-io
                     , ambiata-regiment
                     , ambiata-disorder-core
                     , ambiata-disorder-corpus
+                    , ambiata-disorder-jack
                     , ambiata-p
-                    , text
+                    , bytestring                      == 0.10.*
+                    , extra
                     , QuickCheck                      >= 2.8.2 && < 2.9
                     , quickcheck-instances            == 0.3.*
+                    , temporary
+                    , text
 
 test-suite test-cli
   type:

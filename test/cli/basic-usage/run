@@ -1,0 +1,43 @@
+#!/bin/sh -eu
+
+. $(dirname $0)/../core/setup.sh
+
+banner Display Version
+#---------------------
+
+$REGIMENT -v | grep -q regiment
+
+$REGIMENT --version
+
+banner Display Help
+#------------------
+
+$REGIMENT -h
+
+$REGIMENT --help
+
+REGIMENT="$REGIMENT --dry-run"
+
+# specify column to sort on (mandatory)
+# default field separator is '|' and default format of input-file is delimited
+$REGIMENT sort --key 5 input-file output-dir
+$REGIMENT sort -k 5 input-file output-dir
+
+# specify multiple columns to sort on
+$REGIMENT sort --key 1 --key 5 input-file output-dir
+$REGIMENT sort -k 1 -k 5 input-file output-dir
+
+# explicitly specify field separator
+$REGIMENT sort --field-separator ',' --key 1 input-file output-dir
+$REGIMENT sort -F ',' -k 1 input-file output-dir
+
+# explicitly specify that format of input-file is standardized
+$REGIMENT sort --format standardized --key 1 input-file output-dir
+$REGIMENT sort -f standardized -k 1 input-file output-dir
+
+# explicitly specify memory upper bound of 2 GB (default unit is MB - use G to specify GB)
+$REGIMENT sort --mem-max 2G input-file output-dir
+$REGIMENT sort -m 2G input-file output-dir
+$REGIMENT sort -m 2000 input-file output-dir
+
+# all the things
