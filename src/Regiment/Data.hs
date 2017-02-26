@@ -6,8 +6,14 @@ module Regiment.Data (
   , SortColumn (..)
   , MemoryLimit (..)
   , NumColumns (..)
+  , NumSortKeys (..)
   , Line (..)
   , TempDirectory (..)
+  , Payload (..)
+  , SortKey (..)
+  , SortKeysWithPayload (..)
+  , Block (..)
+  , HandlesLines (..)
   , comma
   , pipe
   , newline
@@ -16,13 +22,14 @@ module Regiment.Data (
 
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import           Data.Vector (Vector)
 import           Data.Word (Word8)
 
 import           P
 
 import           Parsley.Xsv.Data as X
 
-import           System.IO (FilePath)
+import           System.IO (FilePath, Handle)
 
 newtype InputFile =
   InputFile {
@@ -54,11 +61,45 @@ newtype NumColumns =
     numColumns :: Int
   } deriving (Eq, Show, Ord)
 
+newtype NumSortKeys =
+  NumSortKeys {
+    numSortKeys :: Int
+  } deriving (Eq, Show, Ord)
+
+newtype SortKey =
+  SortKey {
+    sortKey :: ByteString
+  } deriving (Eq, Show, Ord)
+
+data Block =
+  Block {
+    blockSize :: !Int32
+  , blockCount :: !Int32
+  , sortKeyBlocks :: Vector ByteString
+  , payloadBlock :: ByteString
+  } deriving (Eq, Show)
+
+newtype Payload =
+  Payload {
+    unPayload :: ByteString
+  } deriving (Eq, Show)
+
+data SortKeysWithPayload =
+  SortKeysWithPayload {
+    sortKeys :: Vector SortKey
+  , payload :: Payload
+  } deriving (Eq, Show)
+
 data Line =
-    NonEmpty ByteString
+    NonEmpty Handle SortKeysWithPayload
   | EOF
-  | Empty
-  deriving (Eq, Show, Ord)
+  | Empty Handle
+  deriving (Eq, Show)
+
+data HandlesLines =
+  HandlesLines {
+    handlesLines :: Vector Line
+  } deriving (Eq, Show)
 
 pipe :: Word8
 pipe =
