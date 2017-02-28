@@ -5,21 +5,27 @@ module Regiment.IO (
   , sort
   , renderSortError
   , writeLine
-  , writeLines
+  , writeChunk
   , readLine
+  , constructLines
   , getSortKeysWithPayload
   , bSortKeysWithPayload
   ) where
 
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.IO.Class (liftIO, MonadIO)
+import           Control.Monad.Trans.Resource (MonadResource (..))
+import qualified Control.Monad.Trans.Resource as R
+
 
 import           Data.Binary.Get (Get)
 import qualified Data.Binary.Get as Get
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import           Data.ByteString.Internal (ByteString(..))
 import qualified Data.ByteString.Lazy as Lazy
+import           Data.String (String)
 import qualified Data.Vector as Boxed
 
 import           Foreign.Storable (Storable(..))
@@ -30,7 +36,8 @@ import           P
 import           Regiment.Data
 import           Regiment.Parse (unpack)
 
-import           System.IO (IO)
+import           System.IO (IO, FilePath, IOMode(..), Handle)
+import           System.IO (openBinaryFile, hClose)
 import qualified System.IO as IO
 
 import           X.Control.Monad.Trans.Either (EitherT, hoistEither, left)
@@ -39,7 +46,11 @@ data SortError =
   SortError
 
 data RegimentIOError =
-  RegimentIOError
+    RegimentIOReadlineFailed
+  | RegimentIONullWrite
+  | RegimentIOBytestringParseFailed String
+  | RegimentIOUnpackFailed
+  deriving (Eq, Show)
 
 renderSortError :: SortError -> Text
 renderSortError _ =
@@ -63,35 +74,35 @@ writeLine h sksp = do
   liftIO $ Builder.hPutBuilder h (Builder.int32LE . sizeSortKeysWithPayload $ sksp)
   liftIO $ Builder.hPutBuilder h (bSortKeysWithPayload sksp)
 
-writeLines :: IO.Handle -> Boxed.Vector (Boxed.Vector BS.ByteString) -> EitherT RegimentIOError IO ()
-writeLines h vs =
+writeChunk :: IO.Handle -> Boxed.Vector (Boxed.Vector BS.ByteString) -> EitherT RegimentIOError IO ()
+writeChunk h vs =
   if Boxed.null vs
-    then left RegimentIOError
+    then left RegimentIONullWrite
     else do
       let
         maybeSksp = unpack . Boxed.head $ vs
       case maybeSksp of
-        Left _ -> left RegimentIOError
+        Left _ -> left RegimentIOUnpackFailed
         Right sksp -> liftIO $ writeLine h sksp
-      writeLines h (Boxed.tail vs)
+      writeChunk h (Boxed.tail vs)
 
-readLine :: IO.Handle -> IO (Maybe Line)
+readLine :: (MonadIO m) => IO.Handle -> EitherT RegimentIOError m Line
 readLine h = do
-  isEOF <- IO.hIsEOF h
+  isEOF <- liftIO $ IO.hIsEOF h
   if isEOF
-    then return $ Just EOF
+    then return EOF
     else do
-      size <- BS.hGet h 4
-      maybeSize <- peekInt32 size
+      size <- liftIO $ BS.hGet h 4
+      maybeSize <- liftIO $ peekInt32 size
       case maybeSize of
-        Nothing -> return Nothing
+        Nothing -> left RegimentIOReadlineFailed
         Just s -> do
-          bl <- BS.hGet h (fromIntegral s)
+          bl <- liftIO $ BS.hGet h (fromIntegral s)
           let
             maybeSksp = bsToSksp $ Lazy.fromStrict bl
           case maybeSksp of
-            Nothing -> return Nothing
-            Just sksp -> return . Just $ NonEmpty h sksp
+            Nothing -> left $ RegimentIOBytestringParseFailed (BSC.unpack bl)
+            Just sksp -> return $ NonEmpty h sksp
 
 bsToSksp :: Lazy.ByteString -> Maybe SortKeysWithPayload
 bsToSksp bs =
@@ -131,3 +142,14 @@ peekInt32 (PS fp off len) =
   else
     withForeignPtr fp $ \ptr ->
       Just <$> peekByteOff ptr off
+
+constructLines :: (MonadResource m, MonadIO m)  => [FilePath] -> EitherT RegimentIOError m Lines
+constructLines filePaths = do
+  handles <- mapM (open ReadMode) filePaths
+  v <- Boxed.mapM readLine (Boxed.fromList handles)
+  v' <- liftIO $ Boxed.thaw v
+  return $ Lines v'
+
+open :: MonadResource m => IOMode -> FilePath -> m Handle
+open m f =
+  snd <$> R.allocate (openBinaryFile f m) hClose
