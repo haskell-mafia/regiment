@@ -29,6 +29,8 @@ import           Test.QuickCheck.Instances ()
 import           Test.QuickCheck.Jack (suchThat, forAllProperties, quickCheckWithResult, forAll, (===), listOf1)
 import           Test.QuickCheck.Jack (Jack, vectorOf, boundedEnum, maxSuccess, stdArgs)
 
+import           X.Control.Monad.Trans.Either (runEitherT)
+
 genBytes :: Jack BS.ByteString
 genBytes =
   BS.pack . toList <$> listOf1 boundedEnum
@@ -69,9 +71,9 @@ prop_roundtrip_write_read_line =
           writeLine h sksp
 
         withBinaryFile output ReadMode $ \h -> do
-          result <- readLine h
+          result <- runEitherT $ readLine h
           let
-            expected = Just $ NonEmpty h sksp
+            expected = Right $ NonEmpty h sksp
 
           return $ result === expected
 

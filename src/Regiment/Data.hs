@@ -8,11 +8,11 @@ module Regiment.Data (
   , NumColumns (..)
   , NumSortKeys (..)
   , Line (..)
+  , Lines (..)
   , TempDirectory (..)
   , Payload (..)
   , SortKey (..)
   , SortKeysWithPayload (..)
-  , HandlesLines (..)
   , comma
   , pipe
   , newline
@@ -25,6 +25,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import           Data.Vector (Vector)
 import qualified Data.Vector as Boxed
+import qualified Data.Vector.Mutable as MBoxed
 import           Data.Word (Word8)
 
 import           P
@@ -106,16 +107,17 @@ countSortKeysWithPayload sksp =
     sks = sortKey <$> sortKeys sksp
   in
     fromIntegral $ (1 + Boxed.length sks)
+
 data Line =
     NonEmpty Handle SortKeysWithPayload
   | EOF
   | Empty Handle
   deriving (Eq, Show)
 
-data HandlesLines =
-  HandlesLines {
-    handlesLines :: Vector Line
-  } deriving (Eq, Show)
+data Lines =
+  Lines {
+    lines :: MBoxed.IOVector Line
+  }
 
 pipe :: Word8
 pipe =
