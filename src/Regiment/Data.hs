@@ -85,6 +85,10 @@ data SortKeysWithPayload =
   , payload :: Payload
   } deriving (Eq, Show)
 
+instance Ord SortKeysWithPayload where
+  compare (SortKeysWithPayload sks1 _) (SortKeysWithPayload sks2 _) =
+    compare sks1 sks2
+
 sizeSortKeysWithPayload :: SortKeysWithPayload -> Int32
 sizeSortKeysWithPayload sksp =
   let
@@ -111,8 +115,13 @@ countSortKeysWithPayload sksp =
 data Line =
     NonEmpty Handle SortKeysWithPayload
   | EOF
-  | Empty Handle
   deriving (Eq, Show)
+
+instance Ord Line where
+  compare (NonEmpty _ sksp1) (NonEmpty _ sksp2) = compare sksp1 sksp2
+  compare EOF EOF = EQ
+  compare EOF _ = GT
+  compare _ EOF = LT
 
 data Lines =
   Lines {

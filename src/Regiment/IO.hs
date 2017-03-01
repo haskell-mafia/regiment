@@ -8,6 +8,7 @@ module Regiment.IO (
   , writeChunk
   , readLine
   , constructLines
+  , updateMinLine
   , getSortKeysWithPayload
   , bSortKeysWithPayload
   ) where
@@ -27,6 +28,7 @@ import           Data.ByteString.Internal (ByteString(..))
 import qualified Data.ByteString.Lazy as Lazy
 import           Data.String (String)
 import qualified Data.Vector as Boxed
+import qualified Data.Vector.Mutable as MBoxed
 
 import           Foreign.Storable (Storable(..))
 import           Foreign.ForeignPtr (withForeignPtr)
@@ -50,6 +52,7 @@ data RegimentIOError =
   | RegimentIONullWrite
   | RegimentIOBytestringParseFailed String
   | RegimentIOUnpackFailed
+  | RegimentIOMinOfEmptyVector
   deriving (Eq, Show)
 
 renderSortError :: SortError -> Text
@@ -153,3 +156,30 @@ constructLines filePaths = do
 open :: MonadResource m => IOMode -> FilePath -> m Handle
 open m f =
   snd <$> R.allocate (openBinaryFile f m) hClose
+
+updateMinLine :: Lines -> EitherT RegimentIOError IO (Line, Lines)
+updateMinLine ls =
+    let
+      vls = lines ls
+      len = MBoxed.length vls
+    in
+      case len of
+        0 -> left RegimentIOMinOfEmptyVector
+        1 -> do
+          m <- MBoxed.read vls 0
+          return $ (m, ls)
+        _ -> do
+          for_ [1 .. ((MBoxed.length vls) - 1)] $ \i -> do
+            m <- MBoxed.read vls 0
+            n <- MBoxed.read vls i
+            when (n < m)
+                (MBoxed.unsafeSwap vls 0 i)
+          -- elt at index 0 should now be min
+          minLine <- MBoxed.read vls 0
+          case minLine of
+            EOF -> return (EOF, Lines vls)
+            NonEmpty h _ -> do
+              nl <- readLine h
+              MBoxed.write vls 0 nl
+              return $ (minLine, Lines vls)
+

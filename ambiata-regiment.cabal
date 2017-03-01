@@ -85,9 +85,11 @@ test-suite test
                     , ambiata-p
                     , ambiata-parsley
                     , ambiata-regiment
+                    , bytestring                      == 0.10.*
                     , QuickCheck                      >= 2.8.2 && < 2.9
                     , quickcheck-instances            == 0.3.*
                     , temporary
+                    , vector                          >= 0.10       && < 0.12
 
 test-suite test-io
   type:
@@ -113,8 +115,10 @@ test-suite test-io
                     , binary                          >= 0.7        && < 0.9
                     , bytestring                      == 0.10.*
                     , filepath                        == 1.3.*
+                    , resourcet                       == 1.1.*
                     , temporary                       == 1.2.*
                     , text
+                    , transformers                    >= 0.4        && < 0.6
                     , QuickCheck                      >= 2.8.2 && < 2.9
                     , quickcheck-instances            == 0.3.*
                     , vector                          >= 0.10       && < 0.12
