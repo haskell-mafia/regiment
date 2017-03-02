@@ -13,7 +13,7 @@ import qualified Data.Binary.Get as Get
 import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as DL
-import qualified Data.Vector as Boxed
+import qualified Data.Ord as DO
 
 import           Disorder.Core.IO (testIO)
 
@@ -86,20 +86,15 @@ prop_updateMinCursor =
                 writeCursor h sksp
                 pure f
 
-          fs <- liftIO $ for (DL.zip [0..] (sksps)) (uncurry writeSortKeys)
+          fs <- liftIO $ zipWithM writeSortKeys [0..] sksps
           mapEitherT runResourceT . firstT show $ do
             ls <- formVanguard fs
             (v, _) <- mapEitherT liftIO $ updateMinCursor ls
             case v of
               NonEmpty _ p ->
-                return $ p === minBySortKeys sksps
+                return $ p === DL.minimumBy (DO.comparing sortKeys) sksps
               EOF ->
                 pure $ counterexample "EOF found" False
-
-minBySortKeys :: [SortKeysWithPayload] -> SortKeysWithPayload
-minBySortKeys sksps =
-  -- assumes non-empty list
-  sksps DL.!! Boxed.minIndex (sortKeys <$> (Boxed.fromList sksps))
 
 return []
 tests =
