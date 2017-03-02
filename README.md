@@ -5,20 +5,6 @@
 > /ˈrɛdʒɪmɛnt/
 >     organize according to a strict system or pattern.
 
-```
-┌─────────┬─────────┬─────────┐
-│  x x x  │  x x x  │  x x x  │
-│ x x x x │ x x x x │ x x x x │
-│  x x x  ╔═════════╗  x x x  │
-│ x x x x ║ cursor^ ║ x x x x │
-╘═════════╝         ║  x x x  │
-│         │         ║ x x x x │
-│         │         ╚═════════╛ <- vanguard
-│         │         │         │
-│         │         │         │
-└─────────┴─────────┴─────────┘
-```
-
 A command line tool for sorting standardized separated files 
 (in the sense of [RFC4180](https://tools.ietf.org/html/rfc4180)).
 

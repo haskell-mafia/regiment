@@ -112,21 +112,33 @@ countSortKeysWithPayload sksp =
   in
     fromIntegral $ (1 + Boxed.length sks)
 
+--   ┌─────────┬─────────┬─────────┐
+--   │  x x x  │  x x x  │  x x x  │
+--   │ x x x x │ x x x x │ x x x x │
+--   │  x x x  ╔═════════╗  x x x  │
+--   │ x x x x ║ cursor^ ║ x x x x │
+--   ╘═════════╝         ║  x x x  │
+--   │         │         ║ x x x x │
+--   │         │         ╚═════════╛ <- vanguard
+--   │         │         │         │
+--   │         │         │         │
+--   └─────────┴─────────┴─────────┘
+
 data Cursor =
     NonEmpty Handle SortKeysWithPayload
   | EOF
   deriving (Eq, Show)
+
+data Vanguard =
+  Vanguard {
+    vanguard :: MBoxed.IOVector Cursor
+  }
 
 instance Ord Cursor where
   compare (NonEmpty _ sksp1) (NonEmpty _ sksp2) = compare sksp1 sksp2
   compare EOF EOF = EQ
   compare EOF _ = GT
   compare _ EOF = LT
-
-data Vanguard =
-  Vanguard {
-    vanguard :: MBoxed.IOVector Cursor
-  }
 
 pipe :: Word8
 pipe =
