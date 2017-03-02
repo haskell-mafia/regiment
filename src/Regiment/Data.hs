@@ -7,8 +7,8 @@ module Regiment.Data (
   , MemoryLimit (..)
   , NumColumns (..)
   , NumSortKeys (..)
-  , Line (..)
-  , Lines (..)
+  , Cursor (..)
+  , Vanguard (..)
   , TempDirectory (..)
   , Payload (..)
   , SortKey (..)
@@ -112,20 +112,20 @@ countSortKeysWithPayload sksp =
   in
     fromIntegral $ (1 + Boxed.length sks)
 
-data Line =
+data Cursor =
     NonEmpty Handle SortKeysWithPayload
   | EOF
   deriving (Eq, Show)
 
-instance Ord Line where
+instance Ord Cursor where
   compare (NonEmpty _ sksp1) (NonEmpty _ sksp2) = compare sksp1 sksp2
   compare EOF EOF = EQ
   compare EOF _ = GT
   compare _ EOF = LT
 
-data Lines =
-  Lines {
-    lines :: MBoxed.IOVector Line
+data Vanguard =
+  Vanguard {
+    vanguard :: MBoxed.IOVector Cursor
   }
 
 pipe :: Word8

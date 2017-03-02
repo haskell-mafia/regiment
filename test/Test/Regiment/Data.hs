@@ -23,9 +23,9 @@ prop_SortKeysWithPayload_ord =
   forAll (arbitrary `suchThat` (> 0)) $ \n ->
     ordLaws (genSortKeysWithPayload n) compare
 
-prop_Line_ord =
+prop_Cursor_ord =
   forAll (arbitrary `suchThat` (> 0)) $ \n ->
-    ordLaws (genLine n stdin) compare
+    ordLaws (genCursor n stdin) compare
 
 ordLaws :: (Eq a, Show a) => Jack a -> (a -> a -> Ordering) -> Property
 ordLaws genA f =
