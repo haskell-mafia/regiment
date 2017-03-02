@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.Data (
     InputFile (..)
+  , OutputFile (..)
   , OutputDirectory (..)
   , SortColumn (..)
   , MemoryLimit (..)
@@ -13,6 +14,7 @@ module Regiment.Data (
   , Payload (..)
   , SortKey (..)
   , SortKeysWithPayload (..)
+  , RegimentIOError (..)
   , comma
   , pipe
   , newline
@@ -23,6 +25,7 @@ module Regiment.Data (
 
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import           Data.String (String)
 import           Data.Vector (Vector)
 import qualified Data.Vector as Boxed
 import qualified Data.Vector.Mutable as MBoxed
@@ -34,9 +37,23 @@ import           Parsley.Xsv.Data as X
 
 import           System.IO (FilePath, Handle)
 
+data RegimentIOError =
+    RegimentIOReadlineFailed
+  | RegimentIONullWrite
+  | RegimentIOBytestringParseFailed String
+  | RegimentIOUnpackFailed
+  | RegimentIOMinOfEmptyVector
+  | RegimentIOMergeError
+  deriving (Eq, Show)
+
 newtype InputFile =
   InputFile {
     inputFile :: FilePath
+  } deriving (Eq, Show)
+
+newtype OutputFile =
+  OutputFile {
+    outputFile :: FilePath
   } deriving (Eq, Show)
 
 newtype OutputDirectory =

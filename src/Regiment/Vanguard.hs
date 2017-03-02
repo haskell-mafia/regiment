@@ -6,6 +6,7 @@ module Regiment.Vanguard (
   , readCursor
   , formVanguard
   , updateMinCursor
+  , open
   ) where
 
 import           Control.Monad.IO.Class (liftIO, MonadIO)
