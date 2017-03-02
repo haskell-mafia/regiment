@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.IO (
     SortError (..)
-  , RegimentIOError (..)
   , sort
   , renderSortError
   , getSortKeysWithPayload
@@ -15,7 +14,6 @@ import qualified Data.ByteString as BS
 import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import           Data.ByteString.Internal (ByteString(..))
-import           Data.String (String)
 import qualified Data.Vector as Boxed
 
 import           P
@@ -29,13 +27,6 @@ import           X.Control.Monad.Trans.Either (EitherT, hoistEither)
 data SortError =
   SortError
 
-data RegimentIOError =
-    RegimentIOReadlineFailed
-  | RegimentIONullWrite
-  | RegimentIOBytestringParseFailed String
-  | RegimentIOUnpackFailed
-  | RegimentIOMinOfEmptyVector
-  deriving (Eq, Show)
 
 renderSortError :: SortError -> Text
 renderSortError _ =
