@@ -41,6 +41,7 @@ library
                     Regiment.Data
                     Regiment.Parse
                     Regiment.IO
+                    Regiment.Vanguard
 
 executable regiment
   ghc-options:

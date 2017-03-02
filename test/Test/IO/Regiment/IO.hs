@@ -24,6 +24,7 @@ import           P
 
 import           Regiment.Data
 import           Regiment.IO
+import           Regiment.Vanguard
 
 import           System.IO (FilePath, IO, IOMode (..), withBinaryFile)
 import           System.IO.Temp (withTempDirectory)
@@ -32,8 +33,8 @@ import           System.FilePath ((</>))
 import           Test.Regiment.Arbitrary
 
 import           Test.QuickCheck.Instances ()
-import           Test.QuickCheck.Jack (suchThat, forAllProperties, quickCheckWithResult, forAll, (===))
-import           Test.QuickCheck.Jack (maxSuccess, stdArgs, counterexample)
+import           Test.QuickCheck.Jack (suchThat, forAllProperties, quickCheckWithResult, (===))
+import           Test.QuickCheck.Jack (maxSuccess, stdArgs, counterexample, listOf1)
 
 import           X.Control.Monad.Trans.Either (runEitherT, mapEitherT)
 
@@ -49,50 +50,51 @@ binaryTripping encode decode =
 
 prop_roundtrip_sortkeyswithpayload :: Property
 prop_roundtrip_sortkeyswithpayload =
-  forAll (arbitrary `suchThat` (> 0)) $ \n ->
+  gamble (arbitrary `suchThat` (> 0)) $ \n ->
     gamble (genSortKeysWithPayload n) $
       binaryTripping bSortKeysWithPayload getSortKeysWithPayload
 
 prop_roundtrip_write_read_line :: Property
 prop_roundtrip_write_read_line =
-  forAll (arbitrary `suchThat` (> 0)) $ \n ->
-    forAll (genSortKeysWithPayload n) $ \sksp ->
+  gamble (arbitrary `suchThat` (> 0)) $ \n ->
+    gamble (genSortKeysWithPayload n) $ \sksp ->
       testIO . withTempDirectory "dist" "regiment-test" $ \tmp -> do
         let
           output = tmp </> "out"
         withBinaryFile output WriteMode $ \h -> do
-          writeLine h sksp
+          writeCursor h sksp
 
         withBinaryFile output ReadMode $ \h -> do
-          result <- runEitherT $ readLine h
+          result <- runEitherT $ readCursor h
           let
             expected = Right $ NonEmpty h sksp
 
           return $ result === expected
 
-prop_updateMinLine :: Property
-prop_updateMinLine =
-  forAll (arbitrary `suchThat` (> 0)) $ \n ->
-  forAll (arbitrary `suchThat` (>= 0)) $ \(k :: Int)  ->
-  forAll (for [0..k] $ \_ -> genSortKeysWithPayload n) $ \sksps ->
-  testIO . withTempDirectory "dist" "regiment-test" $ \dir ->
-    fmap (either (flip counterexample False) id) . runEitherT $ do
-      let
-        writeSortKeys :: Int -> SortKeysWithPayload -> IO FilePath
-        writeSortKeys i sksp = do
-          let f = dir </> show i
-          withBinaryFile f WriteMode $ \h ->
-            writeLine h sksp
-          pure f
-      fs <- liftIO $ for (DL.zip [0..] (sksps)) (uncurry writeSortKeys)
-      mapEitherT runResourceT . firstT show $ do
-        ls <- constructLines fs
-        (l, _) <- mapEitherT liftIO $ updateMinLine ls
-        case l of
-          NonEmpty _ p ->
-            pure $ p === minBySortKeys sksps
-          EOF ->
-            pure $ counterexample "EOF found" False
+prop_updateMinCursor :: Property
+prop_updateMinCursor =
+  gamble (arbitrary `suchThat` (> 0)) $ \n ->
+    gamble (listOf1 (genSortKeysWithPayload n)) $ \sksps ->
+      testIO . withTempDirectory "dist" "regiment-test" $ \dir ->
+        fmap (either (flip counterexample False) id) . runEitherT $ do
+          let
+            writeSortKeys :: Int -> SortKeysWithPayload -> IO FilePath
+            writeSortKeys i sksp = do
+              let
+                f = dir </> show i
+              withBinaryFile f WriteMode $ \h -> do
+                writeCursor h sksp
+                pure f
+
+          fs <- liftIO $ for (DL.zip [0..] (sksps)) (uncurry writeSortKeys)
+          mapEitherT runResourceT . firstT show $ do
+            ls <- formVanguard fs
+            (v, _) <- mapEitherT liftIO $ updateMinCursor ls
+            case v of
+              NonEmpty _ p ->
+                return $ p === minBySortKeys sksps
+              EOF ->
+                pure $ counterexample "EOF found" False
 
 minBySortKeys :: [SortKeysWithPayload] -> SortKeysWithPayload
 minBySortKeys sksps =
