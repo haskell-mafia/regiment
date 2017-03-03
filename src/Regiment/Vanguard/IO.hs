@@ -1,22 +1,21 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Regiment.Vanguard (
-    writeCursor
-  , writeChunk
-  , readCursor
+module Regiment.Vanguard.IO (
+    RegimentReadError (..)
+  , writePayloadToHandle
   , readCursorFromHandle
-  , formVanguard
   , formVanguardFromHandles
-  , updateMinCursor
+  , runVanguardFromHandles
   , updateMinCursorFromHandles
   ) where
 
 import           Control.Monad.IO.Class (liftIO, MonadIO)
+import           Control.Monad.Primitive (PrimMonad, PrimState)
+import           Control.Monad.Trans.Class (lift)
 
 import qualified Data.Binary.Get as Get
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import qualified Data.ByteString.Builder as Builder
 import           Data.ByteString.Internal (ByteString(..))
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Vector as Boxed
@@ -29,7 +28,6 @@ import           P
 
 import           Regiment.Data
 import           Regiment.IO
-import           Regiment.Parse (unpack)
 
 import           System.IO (IO, Handle)
 import qualified System.IO as IO
@@ -40,11 +38,6 @@ data RegimentReadError e =
     RegimentReadCursorError e
   | RegimentReadVanguardEmptyError
   deriving (Eq, Show)
-
-writeCursor :: IO.Handle -> SortKeysWithPayload -> IO ()
-writeCursor h sksp = do
-  liftIO $ Builder.hPutBuilder h (Builder.int32LE . sizeSortKeysWithPayload $ sksp)
-  liftIO $ Builder.hPutBuilder h (bSortKeysWithPayload sksp)
 
 readSortKeysWithPayloadFromHandle :: MonadIO m
                                   => IO.Handle
@@ -80,19 +73,19 @@ readCursor :: Monad m
 readCursor reader a' = do
   bimapEitherT RegimentReadCursorError (maybe EOF (NonEmpty a')) (reader a')
 
-formVanguard :: MonadIO m
+formVanguard :: PrimMonad m
              => (a -> EitherT x m (Maybe SortKeysWithPayload))
              -> [a]
-             -> EitherT (RegimentReadError x) m (Vanguard a)
+             -> EitherT (RegimentReadError x) m (Vanguard (PrimState m) a)
 formVanguard reader l = do
   v <- Boxed.mapM (readCursor reader) (Boxed.fromList l)
-  v' <- liftIO $ Boxed.thaw v
+  v' <- Boxed.thaw v
   return $ Vanguard v'
 
-updateMinCursor :: (Eq a, MonadIO m)
+updateMinCursor :: PrimMonad m
                 => (a -> EitherT x m (Maybe SortKeysWithPayload))
-                -> Vanguard a
-                -> EitherT (RegimentReadError x) m (Cursor a, Vanguard a)
+                -> Vanguard (PrimState m) a
+                -> EitherT (RegimentReadError x) m (Cursor a, Vanguard (PrimState m) a)
 updateMinCursor reader v =
   let
     vcs = vanguard v
@@ -100,31 +93,57 @@ updateMinCursor reader v =
   in
     case len of
       0 -> left $ RegimentReadVanguardEmptyError
-      1 -> liftIO $ MBoxed.read vcs 0 >>= (\m -> return $ (m, v))
-      _ -> do
-        for_ [1 .. ((MBoxed.length vcs) - 1)] $ \i -> do
-          m <- liftIO $ MBoxed.read vcs 0
-          n <- liftIO $ MBoxed.read vcs i
-          when (n < m)
-              (liftIO $ MBoxed.unsafeSwap vcs 0 i)
-        -- elt at index 0 should now be min
-        minCursor <- liftIO $ MBoxed.read vcs 0
+      1 -> do
+        minCursor <- MBoxed.read vcs 0
         case minCursor of
           EOF -> return (EOF, Vanguard vcs)
           NonEmpty h _ -> do
             nl <- readCursor reader h
-            liftIO $ MBoxed.write vcs 0 nl
+            MBoxed.write vcs 0 nl
+            return $ (minCursor, Vanguard vcs)
+      _ -> do
+        for_ [1 .. ((MBoxed.length vcs) - 1)] $ \i -> do
+          m <- MBoxed.read vcs 0
+          n <- MBoxed.read vcs i
+          when (n < m)
+              (MBoxed.unsafeSwap vcs 0 i)
+        -- elt at index 0 should now be min
+        minCursor <-  MBoxed.read vcs 0
+        case minCursor of
+          EOF -> return (EOF, Vanguard vcs)
+          NonEmpty h _ -> do
+            nl <- readCursor reader h
+            MBoxed.write vcs 0 nl
             return $ (minCursor, Vanguard vcs)
 
-formVanguardFromHandles :: MonadIO m
-                        => [Handle]
-                        -> EitherT (RegimentReadError RegimentIOError) m (Vanguard Handle)
+runVanguard :: PrimMonad m
+            => Vanguard (PrimState m) a
+            -> (a -> EitherT x m (Maybe SortKeysWithPayload))
+            -> (Payload -> m ())
+            -> EitherT (RegimentReadError x) m ()
+runVanguard v reader writer = do
+  (minCursor, v') <- updateMinCursor reader v
+  case minCursor of
+    EOF -> return ()
+    NonEmpty _ sksp -> do
+      lift . writer $ payload sksp
+      runVanguard v' reader writer
+
+writePayloadToHandle :: Handle -> Payload -> IO ()
+writePayloadToHandle h p = BS.hPut h (unPayload p)
+
+runVanguardFromHandles :: Vanguard (PrimState IO) Handle -> Handle -> EitherT (RegimentReadError RegimentIOError) IO ()
+runVanguardFromHandles v out =
+  runVanguard v readSortKeysWithPayloadFromHandle (writePayloadToHandle out)
+
+formVanguardFromHandles :: [Handle]
+                        -> EitherT (RegimentReadError RegimentIOError) IO (Vanguard (PrimState IO) Handle)
 formVanguardFromHandles handles = do
   formVanguard readSortKeysWithPayloadFromHandle handles
 
 
-updateMinCursorFromHandles :: Vanguard Handle
-                           -> EitherT (RegimentReadError RegimentIOError) IO (Cursor Handle, Vanguard Handle)
+updateMinCursorFromHandles :: Vanguard (PrimState IO) Handle
+                           -> EitherT (RegimentReadError RegimentIOError) IO (Cursor Handle, Vanguard (PrimState IO) Handle)
 updateMinCursorFromHandles v =
   updateMinCursor readSortKeysWithPayloadFromHandle v
 
@@ -144,16 +163,3 @@ bsToSksp bs =
     Right (_, _, x) ->
       Just x
 
-writeChunk :: IO.Handle
-           -> Boxed.Vector (Boxed.Vector BS.ByteString)
-           -> EitherT RegimentIOError IO ()
-writeChunk h vs =
-  if Boxed.null vs
-    then left RegimentIONullWrite
-    else do
-      let
-        maybeSksp = unpack . Boxed.head $ vs
-      case maybeSksp of
-        Left _ -> left RegimentIOUnpackFailed
-        Right sksp -> liftIO $ writeCursor h sksp
-      writeChunk h (Boxed.tail vs)

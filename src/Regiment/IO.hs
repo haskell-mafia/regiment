@@ -8,8 +8,11 @@ module Regiment.IO (
   , getSortKeysWithPayload
   , bSortKeysWithPayload
   , open
+  , writeCursor
+  , writeChunk
   ) where
 
+import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Resource (MonadResource (..))
 import qualified Control.Monad.Trans.Resource as R
 
@@ -25,10 +28,12 @@ import qualified Data.Vector as Boxed
 import           P
 
 import           Regiment.Data
+import           Regiment.Parse (unpack)
 
 import           System.IO (IO, IOMode (..), FilePath, Handle, hClose, openBinaryFile)
+import qualified System.IO as IO
 
-import           X.Control.Monad.Trans.Either (EitherT, hoistEither)
+import           X.Control.Monad.Trans.Either (EitherT, left, hoistEither)
 
 data SortError =
   SortError
@@ -86,3 +91,21 @@ open :: MonadResource m => IOMode -> FilePath -> m Handle
 open m f =
   snd <$> R.allocate (openBinaryFile f m) hClose
 
+writeCursor :: IO.Handle -> SortKeysWithPayload -> IO ()
+writeCursor h sksp = do
+  liftIO $ Builder.hPutBuilder h (Builder.int32LE . sizeSortKeysWithPayload $ sksp)
+  liftIO $ Builder.hPutBuilder h (bSortKeysWithPayload sksp)
+
+writeChunk :: IO.Handle
+           -> Boxed.Vector (Boxed.Vector BS.ByteString)
+           -> EitherT RegimentIOError IO ()
+writeChunk h vs =
+  if Boxed.null vs
+    then left RegimentIONullWrite
+    else do
+      let
+        maybeSksp = unpack . Boxed.head $ vs
+      case maybeSksp of
+        Left _ -> left RegimentIOUnpackFailed
+        Right sksp -> liftIO $ writeCursor h sksp
+      writeChunk h (Boxed.tail vs)

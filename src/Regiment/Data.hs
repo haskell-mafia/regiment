@@ -127,14 +127,17 @@ countSortKeysWithPayload sksp =
 data Cursor a =
     NonEmpty a SortKeysWithPayload
   | EOF
-  deriving (Eq, Show)
+  deriving (Show)
 
-data Vanguard a =
+data Vanguard s a =
   Vanguard {
-    vanguard :: MBoxed.IOVector (Cursor a)
+    vanguard :: MBoxed.MVector s (Cursor a)
   }
 
-instance (Eq a) => Ord (Cursor a) where
+instance Eq (Cursor a) where
+  (==) x y = compare x y == EQ
+
+instance Ord (Cursor a) where
   compare (NonEmpty _ sksp1) (NonEmpty _ sksp2) = compare sksp1 sksp2
   compare EOF EOF = EQ
   compare EOF _ = GT

@@ -24,7 +24,7 @@ import           P
 
 import           Regiment.Data
 import           Regiment.IO
-import           Regiment.Vanguard
+import           Regiment.Vanguard.IO
 
 import           System.IO (FilePath, IO, IOMode (..), withBinaryFile)
 import           System.IO.Temp (withTempDirectory)
@@ -71,6 +71,7 @@ prop_roundtrip_write_read_line =
 
           return $ result === expected
 
+-- TODO: Delete this once end-to-end test is in place
 prop_updateMinCursor :: Property
 prop_updateMinCursor =
   gamble (arbitrary `suchThat` (> 0)) $ \n ->
@@ -89,7 +90,7 @@ prop_updateMinCursor =
           fs <- liftIO $ zipWithM writeSortKeys [0..] sksps
           mapEitherT runResourceT . firstT show $ do
             handles <- mapM (open ReadMode) fs
-            ls <- formVanguardFromHandles handles
+            ls <- mapEitherT liftIO $ formVanguardFromHandles handles
             (v, _) <- mapEitherT liftIO $ updateMinCursorFromHandles ls
             case v of
               NonEmpty _ p ->
