@@ -7,8 +7,8 @@ module Regiment.Data (
   , MemoryLimit (..)
   , NumColumns (..)
   , NumSortKeys (..)
-  , Line (..)
-  , Lines (..)
+  , Cursor (..)
+  , Vanguard (..)
   , TempDirectory (..)
   , Payload (..)
   , SortKey (..)
@@ -85,6 +85,10 @@ data SortKeysWithPayload =
   , payload :: Payload
   } deriving (Eq, Show)
 
+instance Ord SortKeysWithPayload where
+  compare (SortKeysWithPayload sks1 _) (SortKeysWithPayload sks2 _) =
+    compare sks1 sks2
+
 sizeSortKeysWithPayload :: SortKeysWithPayload -> Int32
 sizeSortKeysWithPayload sksp =
   let
@@ -108,16 +112,33 @@ countSortKeysWithPayload sksp =
   in
     fromIntegral $ (1 + Boxed.length sks)
 
-data Line =
+--   ┌─────────┬─────────┬─────────┐
+--   │  x x x  │  x x x  │  x x x  │
+--   │ x x x x │ x x x x │ x x x x │
+--   │  x x x  ╔═════════╗  x x x  │
+--   │ x x x x ║ cursor^ ║ x x x x │
+--   ╘═════════╝         ║  x x x  │
+--   │         │         ║ x x x x │
+--   │         │         ╚═════════╛ <- vanguard
+--   │         │         │         │
+--   │         │         │         │
+--   └─────────┴─────────┴─────────┘
+
+data Cursor =
     NonEmpty Handle SortKeysWithPayload
   | EOF
-  | Empty Handle
   deriving (Eq, Show)
 
-data Lines =
-  Lines {
-    lines :: MBoxed.IOVector Line
+data Vanguard =
+  Vanguard {
+    vanguard :: MBoxed.IOVector Cursor
   }
+
+instance Ord Cursor where
+  compare (NonEmpty _ sksp1) (NonEmpty _ sksp2) = compare sksp1 sksp2
+  compare EOF EOF = EQ
+  compare EOF _ = GT
+  compare _ EOF = LT
 
 pipe :: Word8
 pipe =
