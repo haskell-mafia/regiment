@@ -7,7 +7,11 @@ module Regiment.IO (
   , renderSortError
   , getSortKeysWithPayload
   , bSortKeysWithPayload
+  , open
   ) where
+
+import           Control.Monad.Trans.Resource (MonadResource (..))
+import qualified Control.Monad.Trans.Resource as R
 
 import           Data.Binary.Get (Get)
 import qualified Data.Binary.Get as Get
@@ -22,7 +26,7 @@ import           P
 
 import           Regiment.Data
 
-import           System.IO (IO)
+import           System.IO (IO, IOMode (..), FilePath, Handle, hClose, openBinaryFile)
 
 import           X.Control.Monad.Trans.Either (EitherT, hoistEither)
 
@@ -30,7 +34,8 @@ data SortError =
   SortError
 
 data RegimentIOError =
-    RegimentIOReadlineFailed
+    RegimentIOReadSortKeysFailed
+  | RegimentIOReadPastEOF
   | RegimentIONullWrite
   | RegimentIOBytestringParseFailed String
   | RegimentIOUnpackFailed
@@ -76,4 +81,8 @@ getSortKeysWithPayload = do
   SortKeysWithPayload
     <$> getSortKeys (bcount - 1)
     <*> getPayload
+
+open :: MonadResource m => IOMode -> FilePath -> m Handle
+open m f =
+  snd <$> R.allocate (openBinaryFile f m) hClose
 

@@ -31,7 +31,7 @@ genSortKeysWithPayload n =
     <$> Boxed.fromList <$> (vectorOf n genSortKey)
     <*> (Payload <$> genBytes)
 
-genCursor :: Int -> Handle -> Jack Cursor
+genCursor :: Int -> Handle -> Jack (Cursor Handle)
 genCursor n h =
   oneof [
       return EOF

@@ -32,7 +32,7 @@ import           P
 
 import           Parsley.Xsv.Data as X
 
-import           System.IO (FilePath, Handle)
+import           System.IO (FilePath)
 
 newtype InputFile =
   InputFile {
@@ -80,14 +80,14 @@ newtype Payload =
   } deriving (Eq, Show)
 
 data SortKeysWithPayload =
-  SortKeysWithPayload {
-    sortKeys :: Vector SortKey
-  , payload :: Payload
-  } deriving (Eq, Show)
+    SortKeysWithPayload {
+      sortKeys :: Vector SortKey
+    , payload :: Payload
+    }
+  deriving (Eq, Show)
 
 instance Ord SortKeysWithPayload where
-  compare (SortKeysWithPayload sks1 _) (SortKeysWithPayload sks2 _) =
-    compare sks1 sks2
+  compare (SortKeysWithPayload sks1 _) (SortKeysWithPayload sks2 _) = compare sks1 sks2
 
 sizeSortKeysWithPayload :: SortKeysWithPayload -> Int32
 sizeSortKeysWithPayload sksp =
@@ -124,17 +124,17 @@ countSortKeysWithPayload sksp =
 --   │         │         │         │
 --   └─────────┴─────────┴─────────┘
 
-data Cursor =
-    NonEmpty Handle SortKeysWithPayload
+data Cursor a =
+    NonEmpty a SortKeysWithPayload
   | EOF
   deriving (Eq, Show)
 
-data Vanguard =
+data Vanguard a =
   Vanguard {
-    vanguard :: MBoxed.IOVector Cursor
+    vanguard :: MBoxed.IOVector (Cursor a)
   }
 
-instance Ord Cursor where
+instance (Eq a) => Ord (Cursor a) where
   compare (NonEmpty _ sksp1) (NonEmpty _ sksp2) = compare sksp1 sksp2
   compare EOF EOF = EQ
   compare EOF _ = GT

@@ -65,7 +65,7 @@ prop_roundtrip_write_read_line =
           writeCursor h sksp
 
         withBinaryFile output ReadMode $ \h -> do
-          result <- runEitherT $ readCursor h
+          result <- runEitherT $ readCursorFromHandle h
           let
             expected = Right $ NonEmpty h sksp
 
@@ -88,8 +88,9 @@ prop_updateMinCursor =
 
           fs <- liftIO $ zipWithM writeSortKeys [0..] sksps
           mapEitherT runResourceT . firstT show $ do
-            ls <- formVanguard fs
-            (v, _) <- mapEitherT liftIO $ updateMinCursor ls
+            handles <- mapM (open ReadMode) fs
+            ls <- formVanguardFromHandles handles
+            (v, _) <- mapEitherT liftIO $ updateMinCursorFromHandles ls
             case v of
               NonEmpty _ p ->
                 return $ p === DL.minimumBy (DO.comparing sortKeys) sksps
