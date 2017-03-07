@@ -70,8 +70,8 @@ toVector (InputFile inn) f n s (NumColumns c) sc  = do
                   case sko of
                     Left RegimentParseError ->
                       go counter (drops + 1) rest
-                    Right sortKeysWithOriginal -> do
-                      Grow.add acc sortKeysWithOriginal
+                    Right keysWithOriginal -> do
+                      Grow.add acc keysWithOriginal
                       go (counter + 1) drops rest)
 
     BS.hGetSome h (1024 * 1024) >>= go (0 :: Int) (0 :: Int)
@@ -91,7 +91,7 @@ selectSortKeys parsed (Separator s) sortColumns =
   in
     case keyNotFound of
       True -> Left RegimentParseError
-      -- returns a vector consisting of sortKeys and payload
+      -- returns a vector consisting of keys and payload
       False -> Right $ (Boxed.singleton unparsed) Boxed.++ (Boxed.fromList sks)
 
 flushVector ::
@@ -106,15 +106,15 @@ flushVector acc = do
    -- done using 'v'
    Grow.clear acc
 
-unpack :: Boxed.Vector BS.ByteString -> Either RegimentParseError SortKeysWithPayload
+unpack :: Boxed.Vector BS.ByteString -> Either RegimentParseError KeyedPayload
 unpack vbs =
   if (Boxed.length vbs > 2)
   then
     let
-      p = Payload $ Boxed.head vbs
-      sks = SortKey <$> Boxed.tail vbs
+      p = Boxed.head vbs
+      sks = Key <$> Boxed.tail vbs
     in
-      Right $ SortKeysWithPayload sks p
+      Right $ KeyedPayload sks p
   else
     Left RegimentParseError
 

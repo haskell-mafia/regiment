@@ -5,9 +5,10 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Test.Regiment.Vanguard.List where
 
+import qualified Data.ByteString as BS
 import qualified Data.List as DL
 
-import           Disorder.Jack (Property, arbitrary, gamble)
+import           Disorder.Jack (Property, gamble)
 
 import           P
 
@@ -18,35 +19,25 @@ import           Regiment.Vanguard.List
 import           Test.Regiment.Arbitrary
 
 import           Test.QuickCheck.Instances ()
-import           Test.QuickCheck.Jack (suchThat, forAllProperties, quickCheckWithResult, (===))
-import           Test.QuickCheck.Jack (chooseInt, maxSuccess, stdArgs)
+import           Test.QuickCheck.Jack (Jack, forAllProperties, quickCheckWithResult, (===))
+import           Test.QuickCheck.Jack (maxSuccess, stdArgs)
 
-
-
-prop_runVanguard_unique_sortkeys :: Property
-prop_runVanguard_unique_sortkeys =
-  gamble (arbitrary `suchThat` (> 0)) $ \numsks ->
-  gamble (chooseInt (1, 10)) $ \numLists ->
-  gamble (arbitrary `suchThat` (> 0)) $ \maxSizeOfList ->
-  gamble (genNestedListOfUniqueSortKeysWithPayload numsks numLists maxSizeOfList) $ \sksps ->
+runVanguardOn :: Jack [[KeyedPayload]] -> Property
+runVanguardOn g =
+  gamble g $ \kps ->
     let
-      expected :: [Payload]
-      expected = payload <$> (DL.sort $ concat sksps)
-
-      ps = runVanguardFromLists (DL.sort <$> sksps)
+      expected = payload <$> (DL.sort $ concat kps)
+      ps = runVanguardList (DL.sort <$> kps)
     in
-      Right expected === (ps :: Either (RegimentReadError ()) [Payload])
+      Right expected === (ps :: Either (RegimentReadError ()) [BS.ByteString])
+
+prop_runVanguard_unique_keys :: Property
+prop_runVanguard_unique_keys =
+  runVanguardOn genListKPsUniqueKeys
 
 prop_runVanguard_possible_dupe_sortkeys :: Property
 prop_runVanguard_possible_dupe_sortkeys =
-  gamble (arbitrary `suchThat` (> 0)) $ \numsks ->
-  gamble (chooseInt (1, 10)) $ \numLists ->
-  gamble (genNestedListOfSortKeysWithPayloadIdenticalToSortKeys numsks numLists) $ \sksps ->
-    let
-      expected = payload <$> (DL.sort $ concat sksps)
-      ps = runVanguardFromLists (DL.sort <$> sksps)
-    in
-      Right expected === (ps :: Either (RegimentReadError ()) [Payload])
+  runVanguardOn genListKPsNoPayload
 
 return []
 tests =

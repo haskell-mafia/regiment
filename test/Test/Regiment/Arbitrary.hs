@@ -17,58 +17,64 @@ import           System.IO (Handle)
 
 import           Test.QuickCheck.Instances ()
 import           Test.QuickCheck.Jack (Jack, oneof, listOf1, listOfN, vectorOf, boundedEnum)
+import           Test.QuickCheck.Jack (chooseInt, arbitrary, suchThat)
 
 genBytes :: Jack BS.ByteString
 genBytes =
   BS.pack . toList <$> listOf1 boundedEnum
 
-genSortKey :: Jack SortKey
-genSortKey =
-  SortKey <$> genBytes
+genKey :: Jack Key
+genKey =
+  Key <$> genBytes
 
-genSortKeysWithPayload :: Int -> Jack SortKeysWithPayload
-genSortKeysWithPayload numsks =
-  SortKeysWithPayload
-    <$> Boxed.fromList <$> (vectorOf numsks genSortKey)
-    <*> (Payload <$> genBytes)
+genKP :: Int -> Jack KeyedPayload
+genKP numKeys =
+  KeyedPayload
+    <$> Boxed.fromList <$> (vectorOf numKeys genKey)
+    <*> genBytes
 
-genSortKeysWithPayloadIdenticalToSortKeys :: Int -> Jack SortKeysWithPayload
-genSortKeysWithPayloadIdenticalToSortKeys numsks = do
-  bs <- vectorOf numsks genBytes
-  sks <- return $ SortKey <$> bs
+genKPNoPayload :: Int -> Jack KeyedPayload
+genKPNoPayload numKeys = do
+  bs <- vectorOf numKeys genBytes
+  ks <- return $ Key <$> bs
   p <- return $ BS.concat bs
   return $
-    SortKeysWithPayload {
-      sortKeys = Boxed.fromList sks
-    , payload = Payload p
+    KeyedPayload {
+      keys = Boxed.fromList ks
+    , payload = p
     }
 
-genNestedListOfSortKeysWithPayloadIdenticalToSortKeys :: Int -> Int -> Jack [[SortKeysWithPayload]]
-genNestedListOfSortKeysWithPayloadIdenticalToSortKeys numsks numLists = do
-    vectorOf numLists $ listOfN 0 numLists (genSortKeysWithPayloadIdenticalToSortKeys numsks)
+genListKPsNoPayload :: Jack [[KeyedPayload]]
+genListKPsNoPayload = do
+  numKeys <- arbitrary `suchThat` (> 0)
+  numLists <- chooseInt (1,10)
+  vectorOf numLists $ listOfN 0 numLists (genKPNoPayload numKeys)
 
-genListOfUniqueSortKeysWithPayload :: Int -> Int -> Int -> Jack [SortKeysWithPayload]
-genListOfUniqueSortKeysWithPayload prefix numsks maxListLength = do
-  sksps <- listOfN 0 maxListLength (genSortKeysWithPayload numsks)
+genKPsUniqueKeys :: Int -> Int -> Int -> Jack [KeyedPayload]
+genKPsUniqueKeys prefix numKeys maxListLength = do
+  kps <- listOfN 0 maxListLength (genKP numKeys)
   let
-    uniquifier = BSC.pack $ (show prefix) <> "_" <> (show $ length sksps)
+    uniquifier = BSC.pack $ (show prefix) <> "_" <> (show $ length kps)
 
-    prepend :: BS.ByteString -> SortKeysWithPayload -> SortKeysWithPayload
-    prepend bs sksp =
-      SortKeysWithPayload {
-          sortKeys = (SortKey <$> Boxed.singleton bs) Boxed.++ sortKeys sksp
-        , payload = payload sksp }
+    prepend :: BS.ByteString -> KeyedPayload -> KeyedPayload
+    prepend bs kp =
+      KeyedPayload {
+          keys = (Key <$> Boxed.singleton bs) Boxed.++ keys kp
+        , payload = payload kp }
 
-  return $ prepend uniquifier <$> sksps
+  return $ prepend uniquifier <$> kps
 
-genNestedListOfUniqueSortKeysWithPayload :: Int -> Int -> Int -> Jack [[SortKeysWithPayload]]
-genNestedListOfUniqueSortKeysWithPayload numsks numLists maxListLength = do
+genListKPsUniqueKeys :: Jack [[KeyedPayload]]
+genListKPsUniqueKeys = do
+  numKeys <- arbitrary `suchThat` (> 0)
+  numLists <- chooseInt (1,10)
+  maxListLength <- arbitrary `suchThat` (> 0)
   forM [1 .. numLists] $ \i ->
-    genListOfUniqueSortKeysWithPayload i numsks maxListLength
+    genKPsUniqueKeys i numKeys maxListLength
 
 genCursor :: Int -> Handle -> Jack (Cursor Handle)
 genCursor n h =
   oneof [
       return EOF
-    , NonEmpty <$> return h <*> (genSortKeysWithPayload n)
+    , NonEmpty <$> return h <*> (genKP n)
   ]
