@@ -10,6 +10,7 @@ module Regiment.IO (
   , open
   , writeCursor
   , writeChunk
+  , bsToKP
   ) where
 
 import           Control.Monad.IO.Class (liftIO)
@@ -22,13 +23,13 @@ import qualified Data.ByteString as BS
 import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import           Data.ByteString.Internal (ByteString(..))
+import qualified Data.ByteString.Lazy as Lazy
 import           Data.String (String)
 import qualified Data.Vector as Boxed
 
 import           P
 
 import           Regiment.Data
-import           Regiment.Parse (unpack)
 
 import           System.IO (IO, IOMode (..), FilePath, Handle, hClose, openBinaryFile)
 import qualified System.IO as IO
@@ -106,8 +107,38 @@ writeChunk h vs =
     then left RegimentIONullWrite
     else do
       let
-        maybeKp = unpack . Boxed.head $ vs
+        maybeKp = vecToKP . Boxed.head $ vs
       case maybeKp of
-        Left _ -> left RegimentIOUnpackFailed
-        Right kp -> liftIO $ writeCursor h kp
-      writeChunk h (Boxed.tail vs)
+        Nothing -> left RegimentIOUnpackFailed
+        Just kp -> do
+          liftIO $ writeCursor h kp
+          if Boxed.null (Boxed.tail vs)
+            then return ()
+            else writeChunk h (Boxed.tail vs)
+
+bsToKP :: BS.ByteString -> Maybe KeyedPayload
+bsToKP bs =
+  case Get.runGetOrFail getKeyedPayload $ Lazy.fromStrict bs of
+    Left _ ->
+      Nothing
+    Right (_, _, x) ->
+      Just x
+
+vecToKP :: Boxed.Vector BS.ByteString -> Maybe KeyedPayload
+vecToKP vbs =
+  -- expected format of Vector
+  -- [k_1,k_2,...,k_n,payload] where k_i are sortkeys
+  -- expect at least one sortkey
+  let
+    l = Boxed.length vbs
+  in
+    if l > 1
+      then
+        let
+          p = Boxed.last vbs
+          sks = Key <$> Boxed.take (l-1) vbs
+        in
+          Just $ KeyedPayload sks p
+    else
+      Nothing
+

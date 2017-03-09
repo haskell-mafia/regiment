@@ -4,6 +4,7 @@ module Regiment.Vanguard.IO (
     RegimentReadError (..)
   , readCursorIO
   , formVanguardIO
+  , readKeyedPayloadIO
   , runVanguardIO
   , updateMinCursorIO
   ) where
@@ -11,11 +12,9 @@ module Regiment.Vanguard.IO (
 import           Control.Monad.IO.Class (liftIO, MonadIO)
 import           Control.Monad.Primitive (PrimState)
 
-import qualified Data.Binary.Get as Get
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import           Data.ByteString.Internal (ByteString(..))
-import qualified Data.ByteString.Lazy as Lazy
 
 import           Foreign.Storable (Storable(..))
 import           Foreign.ForeignPtr (withForeignPtr)
@@ -45,8 +44,7 @@ readKeyedPayloadIO h = do
         Nothing -> left RegimentIOReadKeysFailed
         Just s -> do
           bl <- liftIO $ BS.hGet h (fromIntegral s)
-          let
-            maybeKp = bsToKp $ Lazy.fromStrict bl
+          let maybeKp = bsToKP bl
           case maybeKp of
             Nothing -> left $ RegimentIOBytestringParseFailed (BSC.unpack bl)
             Just _ -> return $ maybeKp
@@ -84,12 +82,4 @@ peekInt32 (PS fp off len) =
   else
     withForeignPtr fp $ \ptr ->
       Just <$> peekByteOff ptr off
-
-bsToKp :: Lazy.ByteString -> Maybe KeyedPayload
-bsToKp bs =
-  case Get.runGetOrFail getKeyedPayload bs of
-    Left _ ->
-      Nothing
-    Right (_, _, x) ->
-      Just x
 

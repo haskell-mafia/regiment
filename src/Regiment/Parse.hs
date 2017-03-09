@@ -3,10 +3,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Regiment.Parse (
-    toVector
-  , unpack
+    toTempFiles
+  , selectSortKeys
+  , RegimentParseError (..)
   ) where
 
+import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Primitive (PrimState)
 
 import qualified Data.ByteString as BS
@@ -18,104 +20,102 @@ import qualified Data.Vector.Algorithms.Tim as Tim
 
 import           P
 
-import           Parsley.Xsv.Parser
+import qualified Parsley.Xsv.Parser as Parsley
 
 import           Regiment.Data
+import           Regiment.IO
 
-import           System.IO (IO, IOMode (..), print)
+import           System.IO (IO, IOMode (..))
 import qualified System.IO as IO
+import           System.FilePath ((</>))
 
+import           X.Control.Monad.Trans.Either (EitherT, newEitherT, runEitherT)
 import qualified X.Data.Vector.Grow as Grow
 
--- import           X.Control.Monad.Trans.Either (EitherT, hoistEither)
+data RegimentParseError =
+    RegimentParseKeyNotFound
+  | RegimentParseIOError RegimentIOError
+  deriving (Eq, Show)
 
-data RegimentParseError = RegimentParseError
-
-toVector ::
+toTempFiles ::
      InputFile
-  -> FormatKind
-  -> Newline
-  -> Separator
-  -> NumColumns
+  -> TempDirectory
+  -> Format
   -> [SortColumn]
-  -> IO ()
-toVector (InputFile inn) f n s (NumColumns c) sc  = do
+  -> Int
+  -> EitherT RegimentParseError IO ()
+toTempFiles (InputFile inn) tmpDir f sc cap = do
   let
-    p = compile $ Format f n s c
-  IO.withFile inn ReadMode $ \h -> do
-    acc <- Grow.new (10 * 1024)
+      p = Parsley.compile f
+      innChunkSize = 1024 * 1024
+  newEitherT . IO.withFile inn ReadMode $ \h -> runEitherT $ do
+    acc <- Grow.new cap
 
     let
-      go !counter !drops bytes = do
+      go :: Int -> Int -> Int -> BS.ByteString -> EitherT RegimentParseError IO ()
+      go !counter !drops !part bytes = do
         case BS.null bytes of
           True -> do
-            IO.hIsEOF h >>= \eof -> case eof of
+            liftIO (IO.hIsEOF h) >>= \eof -> case eof of
               True -> do
-                flushVector acc
-                IO.putStrLn ("completed processing on: " <> show counter <> " rows with " <> show drops <> " drops." )
+                flushVector acc part tmpDir
               False ->
-                BS.hGetSome h (1024 * 1024) >>= go counter drops
+                liftIO (BS.hGetSome h innChunkSize) >>= go counter drops part
           False ->
-            runRowParser
+            Parsley.runRowParser
               p
               bytes
-              (More $ \moar -> do
-                flushVector acc
-                BS.hGetSome h (1024 * 1024) >>= moar)
-              (Failure $ \rest err -> T.putStrLn (renderRowParseError err) >> go counter (drops + 1) rest)
-              (Success $ \rest fields ->
+              (Parsley.More $ \moar -> do
+                liftIO (BS.hGetSome h innChunkSize) >>= moar)
+              (Parsley.Failure $ \rest err ->
+                liftIO (T.putStrLn (Parsley.renderRowParseError err)) >> go counter (drops + 1) part rest)
+              (Parsley.Success $ \rest fields ->
                 let
-                  sko = selectSortKeys (getFields fields) s sc
+                  parsed = BS.take (BS.length bytes - BS.length rest) bytes
+                  sko = selectSortKeys parsed (Parsley.getFields fields) sc
                 in
                   case sko of
-                    Left RegimentParseError ->
-                      go counter (drops + 1) rest
+                    Left _ ->
+                      go counter (drops + 1) part rest
                     Right keysWithOriginal -> do
-                      Grow.add acc keysWithOriginal
-                      go (counter + 1) drops rest)
+                      l <- Grow.length acc
+                      if l + (Boxed.length keysWithOriginal) > cap
+                        then do
+                          flushVector acc part tmpDir
+                          Grow.add acc keysWithOriginal
+                          go (counter + 1) drops (part + 1) rest
+                        else do
+                          Grow.add acc keysWithOriginal
+                          go (counter + 1) drops part rest)
 
-    BS.hGetSome h (1024 * 1024) >>= go (0 :: Int) (0 :: Int)
+    liftIO (BS.hGetSome h innChunkSize) >>= go (0 :: Int) (0 :: Int) (0 :: Int)
 
 selectSortKeys ::
-     (Boxed.Vector BS.ByteString)
-  -> Separator
+     BS.ByteString
+  -> (Boxed.Vector BS.ByteString)
   -> [SortColumn]
   -> Either RegimentParseError (Boxed.Vector BS.ByteString)
-selectSortKeys parsed (Separator s) sortColumns =
+selectSortKeys unparsed parsed sortColumns =
   let
-    unparsed = BS.intercalate (BS.singleton s) (Boxed.toList parsed)
-
     maybeSortkeys = L.map (\sc -> parsed Boxed.!? (sortColumn sc)) sortColumns
-    sks = DM.catMaybes maybeSortkeys
+    ks = DM.catMaybes maybeSortkeys
     keyNotFound = and $ L.map isNothing maybeSortkeys
-  in
+  in do
     case keyNotFound of
-      True -> Left RegimentParseError
+      True -> Left RegimentParseKeyNotFound
       -- returns a vector consisting of keys and payload
-      False -> Right $ (Boxed.singleton unparsed) Boxed.++ (Boxed.fromList sks)
+      False -> Right $ (Boxed.fromList ks) Boxed.++ (Boxed.singleton unparsed)
 
-flushVector ::
-      Grow.Grow Boxed.MVector (PrimState IO) (Boxed.Vector BS.ByteString)
-   -> IO ()
-flushVector acc = do
-   mv <- Grow.unsafeElems acc
-   Tim.sort mv
-   (v :: Boxed.Vector (Boxed.Vector BS.ByteString)) <- Grow.unsafeFreeze acc
-   -- write to TempFile
-   print v
-   -- done using 'v'
-   Grow.clear acc
-
-unpack :: Boxed.Vector BS.ByteString -> Either RegimentParseError KeyedPayload
-unpack vbs =
-  if (Boxed.length vbs > 2)
-  then
-    let
-      p = Boxed.head vbs
-      sks = Key <$> Boxed.tail vbs
-    in
-      Right $ KeyedPayload sks p
-  else
-    Left RegimentParseError
-
-
+flushVector :: Grow.Grow Boxed.MVector (PrimState IO) (Boxed.Vector BS.ByteString)
+            -> Int
+            -> TempDirectory
+            -> EitherT RegimentParseError IO ()
+flushVector acc counter (TempDirectory tmp) = do
+  mv <- Grow.unsafeElems acc
+  Tim.sort mv
+  (v :: Boxed.Vector (Boxed.Vector BS.ByteString)) <- Grow.unsafeFreeze acc
+  -- write to TempFile
+  newEitherT . IO.withFile (tmp </> (show counter)) WriteMode $ \out -> do
+    runEitherT . firstT (\e -> RegimentParseIOError e) $ writeChunk out v
+  -- done using 'v'
+  Grow.clear acc
