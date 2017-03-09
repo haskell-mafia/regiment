@@ -19,9 +19,9 @@ import           Test.QuickCheck.Jack (suchThat, forAllProperties, quickCheckWit
 import           Test.QuickCheck.Jack (Jack, Property, conjoin, property, maxSuccess, stdArgs)
 
 
-prop_SortKeysWithPayload_ord =
+prop_KeyedPayload_ord =
   forAll (arbitrary `suchThat` (> 0)) $ \n ->
-    ordLaws (genSortKeysWithPayload n) compare
+    ordLaws (genKP n) compare
 
 prop_Cursor_ord =
   forAll (arbitrary `suchThat` (> 0)) $ \n ->
@@ -39,7 +39,6 @@ ordLaws genA f =
       , if f c1 c2 /= GT && f c2 c3 /= GT then f c1 c3 =/= GT else property True
       ]
 
--- FIX Should exist in P possibly
 complimentOrd :: Ordering -> Ordering
 complimentOrd o =
   case o of

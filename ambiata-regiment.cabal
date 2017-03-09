@@ -41,7 +41,9 @@ library
                     Regiment.Data
                     Regiment.Parse
                     Regiment.IO
-                    Regiment.Vanguard
+                    Regiment.Vanguard.Base
+                    Regiment.Vanguard.IO
+                    Regiment.Vanguard.List
 
 executable regiment
   ghc-options:
@@ -87,6 +89,7 @@ test-suite test
                     , ambiata-parsley
                     , ambiata-regiment
                     , bytestring                      == 0.10.*
+                    , primitive                       == 0.6.*
                     , QuickCheck                      >= 2.8.2 && < 2.9
                     , quickcheck-instances            == 0.3.*
                     , temporary

@@ -10,14 +10,13 @@ module Regiment.Data (
   , Cursor (..)
   , Vanguard (..)
   , TempDirectory (..)
-  , Payload (..)
-  , SortKey (..)
-  , SortKeysWithPayload (..)
+  , Key (..)
+  , KeyedPayload (..)
   , comma
   , pipe
   , newline
-  , sizeSortKeysWithPayload
-  , countSortKeysWithPayload
+  , sizeKeyedPayload
+  , countKeyedPayload
   , module X
   ) where
 
@@ -32,7 +31,7 @@ import           P
 
 import           Parsley.Xsv.Data as X
 
-import           System.IO (FilePath, Handle)
+import           System.IO (FilePath)
 
 newtype InputFile =
   InputFile {
@@ -69,48 +68,42 @@ newtype NumSortKeys =
     numSortKeys :: Int
   } deriving (Eq, Show, Ord)
 
-newtype SortKey =
-  SortKey {
-    sortKey :: ByteString
+newtype Key =
+  Key {
+    key :: ByteString
   } deriving (Eq, Show, Ord)
 
-newtype Payload =
-  Payload {
-    unPayload :: ByteString
+data KeyedPayload =
+  KeyedPayload {
+    keys :: Vector Key
+  , payload :: ByteString
   } deriving (Eq, Show)
 
-data SortKeysWithPayload =
-  SortKeysWithPayload {
-    sortKeys :: Vector SortKey
-  , payload :: Payload
-  } deriving (Eq, Show)
+instance Ord KeyedPayload where
+  compare (KeyedPayload kp1 _) (KeyedPayload kp2 _) = compare kp1 kp2
 
-instance Ord SortKeysWithPayload where
-  compare (SortKeysWithPayload sks1 _) (SortKeysWithPayload sks2 _) =
-    compare sks1 sks2
-
-sizeSortKeysWithPayload :: SortKeysWithPayload -> Int32
-sizeSortKeysWithPayload sksp =
+sizeKeyedPayload :: KeyedPayload -> Int32
+sizeKeyedPayload kp =
   let
-    skBlocks =
-      sortKey <$> (sortKeys sksp)
-    sizeSKs =
-      -- int32size (i.e. size of length of sort-key) + size of sort-key
-      Boxed.foldl (\n v -> n + int32size + (fromIntegral $ BS.length v)) (0 :: Int32) skBlocks
+    kBlocks =
+      key <$> (keys kp)
+    sizeKs =
+      -- int32size (i.e. size of length of key) + size of key
+      Boxed.foldl (\n v -> n + int32size + (fromIntegral $ BS.length v)) (0 :: Int32) kBlocks
     pBlock =
-      unPayload $ payload sksp
+      payload kp
     sizepayload =
       -- int32size (i.e. size of length of payload) + size of payload
       int32size + (fromIntegral $ BS.length pBlock)
   in
-    int32size + sizeSKs + sizepayload -- blockCount + sortkeys + payload
+    int32size + sizeKs + sizepayload -- blockCount + keys + payload
 
-countSortKeysWithPayload :: SortKeysWithPayload -> Int32
-countSortKeysWithPayload sksp =
+countKeyedPayload :: KeyedPayload -> Int32
+countKeyedPayload kp =
   let
-    sks = sortKey <$> sortKeys sksp
+    ks = key <$> keys kp
   in
-    fromIntegral $ (1 + Boxed.length sks)
+    fromIntegral $ (1 + Boxed.length ks)
 
 --   ┌─────────┬─────────┬─────────┐
 --   │  x x x  │  x x x  │  x x x  │
@@ -124,18 +117,21 @@ countSortKeysWithPayload sksp =
 --   │         │         │         │
 --   └─────────┴─────────┴─────────┘
 
-data Cursor =
-    NonEmpty Handle SortKeysWithPayload
+data Cursor a =
+    NonEmpty a KeyedPayload
   | EOF
-  deriving (Eq, Show)
+  deriving (Show)
 
-data Vanguard =
+data Vanguard s a =
   Vanguard {
-    vanguard :: MBoxed.IOVector Cursor
+    vanguard :: MBoxed.MVector s (Cursor a)
   }
 
-instance Ord Cursor where
-  compare (NonEmpty _ sksp1) (NonEmpty _ sksp2) = compare sksp1 sksp2
+instance Eq (Cursor a) where
+  (==) x y = compare x y == EQ
+
+instance Ord (Cursor a) where
+  compare (NonEmpty _ kp1) (NonEmpty _ kp2) = compare kp1 kp2
   compare EOF EOF = EQ
   compare EOF _ = GT
   compare _ EOF = LT

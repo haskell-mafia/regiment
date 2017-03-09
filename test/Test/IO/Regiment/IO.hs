@@ -24,7 +24,7 @@ import           P
 
 import           Regiment.Data
 import           Regiment.IO
-import           Regiment.Vanguard
+import           Regiment.Vanguard.IO
 
 import           System.IO (FilePath, IO, IOMode (..), withBinaryFile)
 import           System.IO.Temp (withTempDirectory)
@@ -48,51 +48,53 @@ binaryTripping encode decode =
       (Builder.toLazyByteString . encode)
       (bimap third third . Get.runGetOrFail decode)
 
-prop_roundtrip_sortkeyswithpayload :: Property
-prop_roundtrip_sortkeyswithpayload =
+prop_roundtrip_keyedPayload :: Property
+prop_roundtrip_keyedPayload =
   gamble (arbitrary `suchThat` (> 0)) $ \n ->
-    gamble (genSortKeysWithPayload n) $
-      binaryTripping bSortKeysWithPayload getSortKeysWithPayload
+    gamble (genKP n) $
+      binaryTripping bKeyedPayload getKeyedPayload
 
 prop_roundtrip_write_read_line :: Property
 prop_roundtrip_write_read_line =
   gamble (arbitrary `suchThat` (> 0)) $ \n ->
-    gamble (genSortKeysWithPayload n) $ \sksp ->
+    gamble (genKP n) $ \kp ->
       testIO . withTempDirectory "dist" "regiment-test" $ \tmp -> do
         let
           output = tmp </> "out"
         withBinaryFile output WriteMode $ \h -> do
-          writeCursor h sksp
+          writeCursor h kp
 
         withBinaryFile output ReadMode $ \h -> do
-          result <- runEitherT $ readCursor h
+          result <- runEitherT $ readCursorIO h
           let
-            expected = Right $ NonEmpty h sksp
+            expected = Right $ NonEmpty h kp
 
           return $ result === expected
 
+-- TODO: Delete this once end-to-end test is in place
 prop_updateMinCursor :: Property
 prop_updateMinCursor =
   gamble (arbitrary `suchThat` (> 0)) $ \n ->
-    gamble (listOf1 (genSortKeysWithPayload n)) $ \sksps ->
+    gamble (listOf1 (genKP n)) $ \kps ->
       testIO . withTempDirectory "dist" "regiment-test" $ \dir ->
         fmap (either (flip counterexample False) id) . runEitherT $ do
           let
-            writeSortKeys :: Int -> SortKeysWithPayload -> IO FilePath
-            writeSortKeys i sksp = do
+            writeKeys :: Int -> KeyedPayload -> IO FilePath
+            writeKeys i ks = do
               let
                 f = dir </> show i
               withBinaryFile f WriteMode $ \h -> do
-                writeCursor h sksp
+                writeCursor h ks
                 pure f
 
-          fs <- liftIO $ zipWithM writeSortKeys [0..] sksps
+          fs <- liftIO $ zipWithM writeKeys [0..] kps
           mapEitherT runResourceT . firstT show $ do
-            ls <- formVanguard fs
-            (v, _) <- mapEitherT liftIO $ updateMinCursor ls
+            handles <- mapM (open ReadMode) fs
+            ls <- mapEitherT liftIO $ formVanguardIO handles
+            (v, _) <- mapEitherT liftIO $ updateMinCursorIO ls
             case v of
               NonEmpty _ p ->
-                return $ p === DL.minimumBy (DO.comparing sortKeys) sksps
+                return $ p === DL.minimumBy (DO.comparing keys) kps
               EOF ->
                 pure $ counterexample "EOF found" False
 
