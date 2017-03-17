@@ -87,6 +87,7 @@ test-suite test
                     , ambiata-disorder-jack
                     , ambiata-p
                     , ambiata-parsley
+                    , ambiata-parsley-test
                     , ambiata-regiment
                     , bytestring                      == 0.10.*
                     , primitive                       == 0.6.*
@@ -115,9 +116,12 @@ test-suite test-io
                     , ambiata-disorder-corpus
                     , ambiata-disorder-jack
                     , ambiata-p
+                    , ambiata-parsley
+                    , ambiata-parsley-test
                     , ambiata-x-eithert
                     , binary                          >= 0.7        && < 0.9
                     , bytestring                      == 0.10.*
+                    , directory                       == 1.2.*
                     , filepath                        == 1.3.*
                     , resourcet                       == 1.1.*
                     , temporary                       == 1.2.*
