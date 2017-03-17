@@ -7,17 +7,23 @@ module Test.Regiment.Arbitrary where
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import qualified Data.List as DL
 import qualified Data.Vector as Boxed
 
 import           P
+
+import qualified Parsley.Xsv.Render as Parsley
 
 import           Regiment.Data
 
 import           System.IO (Handle)
 
+import           Test.Parsley.Arbitrary
+
+import qualified Test.QuickCheck as QC
 import           Test.QuickCheck.Instances ()
 import           Test.QuickCheck.Jack (Jack, oneof, listOf1, listOfN, vectorOf, boundedEnum)
-import           Test.QuickCheck.Jack (chooseInt, arbitrary, suchThat)
+import           Test.QuickCheck.Jack (chooseInt, arbitrary, suchThat, mkJack_, sublistOf)
 
 genBytes :: Jack BS.ByteString
 genBytes =
@@ -78,3 +84,38 @@ genCursor n h =
       return EOF
     , NonEmpty <$> return h <*> (genKP n)
   ]
+
+genListSortColumns :: Format -> Jack [SortColumn]
+genListSortColumns fmt = do
+  sortcols <- sublistOf [0 .. ((formatColumnCount fmt) - 1)] `suchThat` (not . null)
+  return $ SortColumn <$> sortcols
+
+genField :: Format -> Jack BS.ByteString
+genField fmt =
+  let
+    sep = formatSeparator fmt
+  in
+    mkJack_ $ case formatKind fmt of
+      Delimited -> do
+        genDelimitedField strBSlistOf1 sep
+      Standardized -> do
+        genStandardizedField strBSlistOf1 sep
+
+genRealKP :: Format -> [SortColumn] -> Jack KeyedPayload
+genRealKP fmt sc = do
+  -- gen KeyedPayload using the gens from Parsley so that
+  -- we end up with an actual delimited or standardized payload
+
+  -- assume that sc is legit - i.e of length < formatColumnCount and
+  -- a subset of 1 .. formatColumnCount
+  fields <- vectorOf (formatColumnCount fmt) (genField fmt)
+  let
+    sortkeys = DL.map (\i -> Key $ fields DL.!! (sortColumn i)) sc
+  return $ KeyedPayload {
+      keys = Boxed.fromList sortkeys
+    , payload = Parsley.renderRow fmt (Boxed.fromList fields) <> (renderNewline $ formatNewline fmt)
+  }
+
+strBSlistOf1 :: QC.Gen BS.ByteString
+strBSlistOf1 = fmap BSC.pack . QC.listOf1 . QC.elements $
+                 ['A'..'Z'] <> ['a'..'z'] <> ['0'..'9'] <> "~!@#$%^&*()\n\r\t\""
