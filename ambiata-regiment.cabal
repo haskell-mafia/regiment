@@ -38,6 +38,7 @@ library
   exposed-modules:
                     Paths_ambiata_regiment
                     Regiment
+                    Regiment.Serial
                     Regiment.Data
                     Regiment.Parse
                     Regiment.IO

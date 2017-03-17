@@ -3,17 +3,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Regiment.Parse (
-    toTempFiles
+    RegimentParseError (..)
+  , toTempFiles
   , selectSortKeys
-  , RegimentParseError (..)
+  , writeCursor
   ) where
 
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Primitive (PrimState)
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as L
 import qualified Data.Maybe as DM
+import           Data.String (String)
 import qualified Data.Text.IO as T
 import qualified Data.Vector as Boxed
 import qualified Data.Vector.Algorithms.Tim as Tim
@@ -24,17 +27,20 @@ import qualified Parsley.Xsv.Parser as Parsley
 
 import           Regiment.Data
 import           Regiment.IO
+import           Regiment.Serial
 
 import           System.IO (IO, IOMode (..))
 import qualified System.IO as IO
 import           System.FilePath ((</>))
 
-import           X.Control.Monad.Trans.Either (EitherT, newEitherT, runEitherT)
+import           X.Control.Monad.Trans.Either (EitherT, left, newEitherT, runEitherT)
+import qualified X.Data.Vector as Boxed
 import qualified X.Data.Vector.Grow as Grow
 
 data RegimentParseError =
     RegimentParseKeyNotFound
-  | RegimentParseIOError RegimentIOError
+  | RegimentParseIONullWrite
+  | RegimentParseVectorToKPFailed String
   deriving (Eq, Show)
 
 toTempFiles ::
@@ -116,6 +122,28 @@ flushVector acc counter (TempDirectory tmp) = do
   (v :: Boxed.Vector (Boxed.Vector BS.ByteString)) <- Grow.unsafeFreeze acc
   -- write to TempFile
   newEitherT . IO.withFile (tmp </> (show counter)) WriteMode $ \out -> do
-    runEitherT . firstT (\e -> RegimentParseIOError e) $ writeChunk out v
+    runEitherT $ writeChunk out v
   -- done using 'v'
   Grow.clear acc
+
+writeChunk :: IO.Handle
+           -> Boxed.Vector (Boxed.Vector BS.ByteString)
+           -> EitherT RegimentParseError IO ()
+writeChunk h vs =
+  case Boxed.uncons vs of
+    Nothing -> left RegimentParseIONullWrite
+    Just (bs, tl) -> do
+      let
+        maybeKp = vecToKP bs
+      case maybeKp of
+        Nothing -> left . RegimentParseVectorToKPFailed $ show bs
+        Just kp -> do
+          liftIO $ writeCursor h kp
+          if Boxed.null tl
+            then return ()
+            else writeChunk h tl
+
+writeCursor :: IO.Handle -> KeyedPayload -> IO ()
+writeCursor h kp = do
+  liftIO $ Builder.hPutBuilder h (Builder.int32LE . sizeKeyedPayload $ kp)
+  liftIO $ Builder.hPutBuilder h (bKeyedPayload kp)
