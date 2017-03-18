@@ -26,6 +26,7 @@ import           P
 import           Regiment.Data
 import           Regiment.IO
 import           Regiment.Parse
+import           Regiment.Serial
 import           Regiment.Vanguard.IO
 
 import           System.Directory (getDirectoryContents)

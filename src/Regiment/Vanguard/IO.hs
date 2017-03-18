@@ -13,7 +13,6 @@ import           Control.Monad.IO.Class (liftIO, MonadIO)
 import           Control.Monad.Primitive (PrimState)
 
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BSC
 import           Data.ByteString.Internal (ByteString(..))
 
 import           Foreign.Storable (Storable(..))
@@ -43,11 +42,10 @@ readKeyedPayloadIO h = do
       case maybeSize of
         Nothing -> left RegimentIOReadKeysFailed
         Just s -> do
-          bl <- liftIO $ BS.hGet h (fromIntegral s)
-          let maybeKp = bsToKP bl
-          case maybeKp of
-            Nothing -> left $ RegimentIOBytestringParseFailed (BSC.unpack bl)
-            Just _ -> return $ maybeKp
+          bs <- liftIO $ BS.hGet h (fromIntegral s)
+          case bsToKP bs of
+            Left e -> left e
+            Right kp -> return $ Just kp
 
 readCursorIO :: MonadIO m
              => IO.Handle
