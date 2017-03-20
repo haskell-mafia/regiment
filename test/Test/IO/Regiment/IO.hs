@@ -118,7 +118,7 @@ prop_roundtrip_write_read_sorted_tmp_file =
 
       -- toTempFiles on the input file that was just created
       withTempDirectory "dist" "regiment-test" $ \tmp -> do
-        success <- runEitherT $ toTempFiles (InputFile tmpFile) (TempDirectory tmp) fmt sc (10 * 1024)
+        success <- runEitherT $ toTempFiles (InputFile tmpFile) (TempDirectory tmp) fmt sc (MemoryLimit (1024 * 1024))
         case success of
           Left e ->
             return $ counterexample ("toTempFiles errored out: " <> show e) False

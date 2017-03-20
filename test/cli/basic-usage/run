@@ -18,26 +18,37 @@ $REGIMENT --help
 
 REGIMENT="$REGIMENT --dry-run"
 
-# specify column to sort on (mandatory)
-# default field separator is '|' and default format of input-file is delimited
-$REGIMENT sort --key 5 input-file output-dir
-$REGIMENT sort -k 5 input-file output-dir
+# specify:
+#   column to sort on (mandatory)
+#   number-of-columns in file (mandatory)
+#   field-separator (mandatory)
+#
+# default newline is LF
+# default format of input-file is delimited
+# default upper bound for memory is (1024 * 1024) bytes
+$REGIMENT sort --key 5 --number-columns 15 --field-separator ','  input-file
+$REGIMENT sort -k 5 -c 15 -f ','  input-file
 
 # specify multiple columns to sort on
-$REGIMENT sort --key 1 --key 5 input-file output-dir
-$REGIMENT sort -k 1 -k 5 input-file output-dir
-
-# explicitly specify field separator
-$REGIMENT sort --field-separator ',' --key 1 input-file output-dir
-$REGIMENT sort -F ',' -k 1 input-file output-dir
+$REGIMENT sort --key 1 --key 5 --number-columns 15 --field-separator ','  input-file
+$REGIMENT sort -k 1 -k 5 -c 15 -f ','  input-file
 
 # explicitly specify that format of input-file is standardized
-$REGIMENT sort --format standardized --key 1 input-file output-dir
-$REGIMENT sort -f standardized -k 1 input-file output-dir
+$REGIMENT sort --standardized --key 1 --number-columns 15 --field-separator ','  input-file
+$REGIMENT sort --standardized -k 1 -c 15 -f ','  input-file
 
 # explicitly specify memory upper bound of 2 GB (default unit is MB - use G to specify GB)
-$REGIMENT sort --mem-max 2G input-file output-dir
-$REGIMENT sort -m 2G input-file output-dir
-$REGIMENT sort -m 2000 input-file output-dir
+$REGIMENT sort --mem-max 2G --key 1 --number-columns 15 --field-separator ','  input-file
+$REGIMENT sort -m 2G -k 1 -c 15 -f ','  input-file
+$REGIMENT sort -m 2000 -k 1 -c 15 -f ','  input-file
+
+# explicitly specify newline -- one of LF, CR or CRLF (defaults to LF)
+$REGIMENT sort --key 5 --number-columns 15 --field-separator ',' --crlf input-file
+$REGIMENT sort -k 5 -c 15 -f ',' --crlf input-file
+
+# explicitly specify path to output file -- defaults to stdout
+$REGIMENT sort --key 5 --number-columns 15 --field-separator ',' --output "path/to/output-file" input-file
+$REGIMENT sort -k 5 -c 15 -f ',' -o "path/to/output-file" input-file
 
 # all the things
+$REGIMENT sort -f ',' -k 1 -k 4 -k 5 -c 26 -m 10G --crlf --standardized -o "path/to/output-file" input-file

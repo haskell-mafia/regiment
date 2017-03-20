@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.Data (
     InputFile (..)
-  , OutputDirectory (..)
+  , OutputFile (..)
   , SortColumn (..)
   , MemoryLimit (..)
   , NumColumns (..)
@@ -37,9 +37,9 @@ newtype InputFile =
     inputFile :: FilePath
   } deriving (Eq, Show)
 
-newtype OutputDirectory =
-  OutputDirectory {
-    outputDirectory :: FilePath
+newtype OutputFile =
+  OutputFile {
+    outputFile :: FilePath
   } deriving (Eq, Show)
 
 newtype TempDirectory =
