@@ -29,7 +29,7 @@ runVanguardOn g =
       expected = payload <$> (DL.sort $ concat kps)
       ps = runVanguardList (DL.sort <$> kps)
     in
-      Right expected === (ps :: Either (RegimentReadError ()) [BS.ByteString])
+      Right expected === (ps :: Either (RegimentMergeError ()) [BS.ByteString])
 
 prop_runVanguard_unique_keys :: Property
 prop_runVanguard_unique_keys =

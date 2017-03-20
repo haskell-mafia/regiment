@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.Vanguard.Base (
-    RegimentReadError (..)
+    RegimentMergeError (..)
   , readCursor
   , formVanguard
   , runVanguard
@@ -21,22 +21,22 @@ import           Regiment.Data
 
 import           X.Control.Monad.Trans.Either (EitherT, left, bimapEitherT)
 
-data RegimentReadError e =
-    RegimentReadCursorError e
-  | RegimentReadVanguardEmptyError
+data RegimentMergeError e =
+    RegimentMergeCursorError e
+  | RegimentMergeVanguardEmptyError
   deriving (Eq, Show)
 
 readCursor :: Monad m
            => (a -> EitherT x m (Maybe KeyedPayload))
            -> a
-           -> EitherT (RegimentReadError x) m (Cursor a)
+           -> EitherT (RegimentMergeError x) m (Cursor a)
 readCursor reader a' = do
-  bimapEitherT RegimentReadCursorError (maybe EOF (NonEmpty a')) (reader a')
+  bimapEitherT RegimentMergeCursorError (maybe EOF (NonEmpty a')) (reader a')
 
 formVanguard :: PrimMonad m
              => (a -> EitherT x m (Maybe KeyedPayload))
              -> [a]
-             -> EitherT (RegimentReadError x) m (Vanguard (PrimState m) a)
+             -> EitherT (RegimentMergeError x) m (Vanguard (PrimState m) a)
 formVanguard reader l = do
   v <- Boxed.mapM (readCursor reader) (Boxed.fromList l)
   v' <- Boxed.thaw v
@@ -45,14 +45,14 @@ formVanguard reader l = do
 updateMinCursor :: PrimMonad m
                 => (a -> EitherT x m (Maybe KeyedPayload))
                 -> Vanguard (PrimState m) a
-                -> EitherT (RegimentReadError x) m (Cursor a, Vanguard (PrimState m) a)
+                -> EitherT (RegimentMergeError x) m (Cursor a, Vanguard (PrimState m) a)
 updateMinCursor reader v =
   let
     vcs = vanguard v
     len = MBoxed.length vcs
   in
     case len of
-      0 -> left $ RegimentReadVanguardEmptyError
+      0 -> left $ RegimentMergeVanguardEmptyError
       _ -> do
         when (len > 1) $
           -- linear bubble up of min
@@ -75,7 +75,7 @@ runVanguard :: PrimMonad m
             => Vanguard (PrimState m) a
             -> (a -> EitherT x m (Maybe KeyedPayload))
             -> (BS.ByteString -> m ())
-            -> EitherT (RegimentReadError x) m ()
+            -> EitherT (RegimentMergeError x) m ()
 runVanguard v reader writer = do
   (minCursor, v') <- updateMinCursor reader v
   case minCursor of

@@ -26,8 +26,9 @@ import           P
 import qualified Parsley.Xsv.Parser as Parsley
 
 import           Regiment.Data
-import           Regiment.IO
 import           Regiment.Serial
+import           Regiment.Vanguard.Base
+import           Regiment.Vanguard.IO
 
 import           System.IO (IO, IOMode (..))
 import qualified System.IO as IO
@@ -41,6 +42,7 @@ data RegimentParseError =
     RegimentParseKeyNotFound
   | RegimentParseIONullWrite
   | RegimentParseVectorToKPFailed String
+  | RegimentParseMergeError (RegimentMergeError RegimentMergeIOError)
   deriving (Eq, Show)
 
 toTempFiles ::
@@ -147,3 +149,23 @@ writeCursor :: IO.Handle -> KeyedPayload -> IO ()
 writeCursor h kp = do
   liftIO $ Builder.hPutBuilder h (Builder.int32LE . sizeKeyedPayload $ kp)
   liftIO $ Builder.hPutBuilder h (bKeyedPayload kp)
+
+
+vecToKP :: Boxed.Vector BS.ByteString -> Maybe KeyedPayload
+vecToKP vbs =
+  -- expected format of Vector
+  -- [k_1,k_2,...,k_n,payload] where k_i are sortkeys
+  -- expect at least one sortkey
+  let
+    l = Boxed.length vbs
+  in
+    if l > 1
+      then
+        let
+          p = Boxed.last vbs
+          sks = Key <$> Boxed.take (l-1) vbs
+        in
+          Just $ KeyedPayload sks p
+    else
+      Nothing
+

@@ -5,7 +5,7 @@ module Regiment.Data (
   , OutputDirectory (..)
   , SortColumn (..)
   , MemoryLimit (..)
-  , NumSortKeys (..)
+  , NumColumns (..)
   , Cursor (..)
   , Vanguard (..)
   , TempDirectory (..)
@@ -57,9 +57,9 @@ newtype MemoryLimit =
     memoryLimit :: Int
   } deriving (Eq, Show, Ord)
 
-newtype NumSortKeys =
-  NumSortKeys {
-    numSortKeys :: Int
+newtype NumColumns =
+  NumColumns {
+    numColumns :: Int
   } deriving (Eq, Show, Ord)
 
 newtype Key =

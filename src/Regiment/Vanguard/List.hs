@@ -39,12 +39,12 @@ writePayloadToList lst p =
 formVanguardList :: (PrimMonad (ST s))
                  => [ST.STRef s [KeyedPayload]]
                  -> EitherT
-                    (RegimentReadError x)
+                    (RegimentMergeError x)
                     (ST s) (Vanguard (PrimState (ST s)) (ST.STRef s [KeyedPayload]))
 formVanguardList strkps =
   formVanguard readCursorList strkps
 
-runVanguardList :: [[KeyedPayload]] -> Either (RegimentReadError x) [BS.ByteString]
+runVanguardList :: [[KeyedPayload]] -> Either (RegimentMergeError x) [BS.ByteString]
 runVanguardList kps = runST $ runEitherT $ do
   stkps <- lift $ mapM ST.newSTRef kps
   out <- lift $ ST.newSTRef []

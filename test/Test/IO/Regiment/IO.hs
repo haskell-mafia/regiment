@@ -30,9 +30,9 @@ import           Regiment.Serial
 import           Regiment.Vanguard.IO
 
 import           System.Directory (getDirectoryContents)
+import           System.FilePath ((</>))
 import           System.IO (FilePath, IO, Handle, IOMode (..), hIsEOF, hClose, withBinaryFile)
 import           System.IO.Temp (withTempFile, withTempDirectory)
-import           System.FilePath ((</>))
 
 import           Test.Regiment.Arbitrary
 
@@ -130,7 +130,7 @@ prop_roundtrip_write_read_sorted_tmp_file =
               Left _ -> counterexample "RegimentIOError" False
               Right result -> expected === result
 
-slurp :: Handle -> [BS.ByteString] -> EitherT RegimentIOError IO [BS.ByteString]
+slurp :: Handle -> [BS.ByteString] -> EitherT RegimentMergeIOError IO [BS.ByteString]
 slurp h ps = do
   isEOF <- liftIO $ hIsEOF h
   if isEOF
@@ -142,10 +142,10 @@ slurp h ps = do
         Nothing -> slurp h ps
         Just p -> slurp h (ps DL.++ [payload p])
 
-readPayloads :: [FilePath] -> EitherT RegimentIOError IO [BS.ByteString]
+readPayloads :: [FilePath] -> EitherT RegimentMergeIOError IO [BS.ByteString]
 readPayloads fps = do
   let
-    f :: FilePath -> EitherT RegimentIOError IO [BS.ByteString]
+    f :: FilePath -> EitherT RegimentMergeIOError IO [BS.ByteString]
     f fp = newEitherT $ do
       withBinaryFile fp ReadMode $ \h
         -> runEitherT $ slurp h []
