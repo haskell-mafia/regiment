@@ -7,6 +7,7 @@ module Test.Regiment.Arbitrary where
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import           Data.Char (ord)
 import qualified Data.List as DL
 import qualified Data.Vector as Boxed
 
@@ -119,3 +120,12 @@ genRealKP fmt sc = do
 strBSlistOf1 :: QC.Gen BS.ByteString
 strBSlistOf1 = fmap BSC.pack . QC.listOf1 . QC.elements $
                  ['A'..'Z'] <> ['a'..'z'] <> ['0'..'9'] <> "~!@#$%^&*()\n\r\t\""
+
+genNonNullSeparator :: Jack Separator
+genNonNullSeparator =
+  arbitrary `suchThat` (\sep -> sep /= (Separator . fromIntegral $ ord '\NUL'))
+
+
+genRestrictedFormat :: Separator -> Jack Format
+genRestrictedFormat sep =
+  arbitrary `suchThat` (\fmt -> (formatColumnCount fmt) > 0 && (formatKind fmt) == Delimited && (formatSeparator fmt) == sep && (formatNewline fmt) == LF)

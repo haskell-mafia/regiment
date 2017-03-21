@@ -6,15 +6,15 @@
 module Test.IO.Regiment.IO where
 
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Trans.Resource (runResourceT)
 
 import           Data.Binary.Get (Get)
 import qualified Data.Binary.Get as Get
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as DL
-import qualified Data.Ord as DO
+import qualified Data.Text as T
 
 import           Disorder.Core.IO (testIO)
 
@@ -30,17 +30,20 @@ import           Regiment.Serial
 import           Regiment.Vanguard.IO
 
 import           System.Directory (getDirectoryContents)
+import           System.Exit
 import           System.FilePath ((</>))
 import           System.IO (FilePath, IO, Handle, IOMode (..), hIsEOF, hClose, withBinaryFile)
 import           System.IO.Temp (withTempFile, withTempDirectory)
+import           System.Process (readProcessWithExitCode, createProcess, proc, waitForProcess, env)
 
+import           Test.Parsley.Arbitrary
 import           Test.Regiment.Arbitrary
 
 import           Test.QuickCheck.Instances ()
-import           Test.QuickCheck.Jack (suchThat, forAllProperties, quickCheckWithResult, (===))
-import           Test.QuickCheck.Jack (vectorOf, maxSuccess, stdArgs, counterexample, listOf1)
+import           Test.QuickCheck.Jack (suchThat, property, forAllProperties, quickCheckWithResult)
+import           Test.QuickCheck.Jack (vectorOf, maxSuccess, stdArgs, counterexample, (===), mkJack_)
 
-import           X.Control.Monad.Trans.Either (EitherT, newEitherT, runEitherT, mapEitherT)
+import           X.Control.Monad.Trans.Either (EitherT, newEitherT, runEitherT)
 
 
 binaryTripping :: (Show a, Eq a) => (a -> Builder) -> Get a -> a -> Property
@@ -75,33 +78,6 @@ prop_roundtrip_write_read_line =
 
           return $ result === expected
 
--- TODO: Delete this once end-to-end test is in place
-prop_updateMinCursor :: Property
-prop_updateMinCursor =
-  gamble (arbitrary `suchThat` (> 0)) $ \n ->
-    gamble (listOf1 (genKP n)) $ \kps ->
-      testIO . withTempDirectory "dist" "regiment-test" $ \dir ->
-        fmap (either (flip counterexample False) id) . runEitherT $ do
-          let
-            writeKeys :: Int -> KeyedPayload -> IO FilePath
-            writeKeys i ks = do
-              let
-                f = dir </> show i
-              withBinaryFile f WriteMode $ \h -> do
-                writeCursor h ks
-                pure f
-
-          fs <- liftIO $ zipWithM writeKeys [0..] kps
-          mapEitherT runResourceT . firstT show $ do
-            handles <- mapM (open ReadMode) fs
-            ls <- mapEitherT liftIO $ formVanguardIO handles
-            (v, _) <- mapEitherT liftIO $ updateMinCursorIO ls
-            case v of
-              NonEmpty _ p ->
-                return $ p === DL.minimumBy (DO.comparing keys) kps
-              EOF ->
-                pure $ counterexample "EOF found" False
-
 prop_roundtrip_write_read_sorted_tmp_file =
   gamble (arbitrary `suchThat` (> 0)) $ \n ->
   gamble (arbitrary `suchThat` (\f -> (formatColumnCount f) > 0)) $ \fmt ->
@@ -129,6 +105,58 @@ prop_roundtrip_write_read_sorted_tmp_file =
             return $ case mresult of
               Left _ -> counterexample "RegimentIOError" False
               Right result -> expected === result
+
+prop_regiment =
+  gamble (arbitrary `suchThat` (> 0)) $ \n ->
+  gamble genNonNullSeparator $ \sep ->
+  gamble (genRestrictedFormat sep) $ \fmt ->
+  gamble (genListSortColumns fmt) $ \sc ->
+  gamble (vectorOf n $ (mkJack_ $ genRow fmt) `suchThat` (not . BS.null)) $ \rs -> do
+    let inp = unlines fmt rs
+    testIO . withTempFile "dist" "test-input-" $ \tmpFile hFile -> do
+      BS.hPut hFile inp
+      hClose hFile
+
+      withTempDirectory "dist" "regiment-test." $ \tmp -> do
+        success <- runEitherT $ regiment (InputFile tmpFile)
+                                         (Just . OutputFile $ tmp </> "regiment-sorted")
+                                         sc
+                                         (formatKind fmt)
+                                         (formatNewline fmt)
+                                         (NumColumns (formatColumnCount fmt))
+                                         (formatSeparator fmt)
+                                         (MemoryLimit (1024 * 1024))
+        case success of
+          Left e ->
+            return $ counterexample ("regiment errored out: " <> show e) False
+          Right _ -> do
+            let
+              -- below is to end up with key options for sort so that
+              -- e.g. sort cols of 2, 4 correspond to
+              -- "-k", "2,2", "-k", "4,4"
+              sc' = ((\k -> k + 1) . sortColumn) <$> sc
+              scs = [fmap (\s -> DL.filter (\c -> c /= '(' && c /= ')') s) $ show <$> (DL.zip sc' sc')]
+              ks = DL.concat . DL.transpose $ [DL.replicate (DL.length sc) (T.unpack "-k")] DL.++ scs
+              sepChar = BSC.unpack . BS.singleton . renderSeparator $ formatSeparator fmt
+
+            (_, _, _, pr) <- createProcess ( proc "sort"
+                                           $ ks <> ["-t", sepChar, "-o", tmp </> "gnu-sorted", tmpFile]
+                                           ) { env = Just [("LC_COLLATE", "C")] }
+            ex <- waitForProcess pr
+            case ex of
+              ExitFailure _ -> return $ counterexample "gnu-sort errorred out" False
+              ExitSuccess -> do
+                (ex', so', _se') <- readProcessWithExitCode "diff" [ "-c"
+                                                                     , tmp </> "regiment-sorted"
+                                                                     , tmp </> "gnu-sorted"
+                                                                   ] ""
+                case ex' of
+                  ExitSuccess -> return $ property True
+                  ExitFailure _ -> return $ counterexample ("diff failed: " <> so') False
+
+unlines fmt ls =
+  let nl = renderNewline . formatNewline $ fmt
+  in BS.intercalate nl ls <> nl
 
 slurp :: Handle -> [BS.ByteString] -> EitherT RegimentMergeIOError IO [BS.ByteString]
 slurp h ps = do
