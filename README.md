@@ -11,30 +11,39 @@ A command line tool for sorting standardized separated files
 --------
 
 ```
-# specify column to sort on (mandatory)
-# default field separator is '|' and default format of input-file is delimited
-regiment sort --key 5 input-file output-dir
-regiment sort -k 5 input-file output-dir
+# specify:
+#   column to sort on (mandatory)
+#   number-of-columns in file (mandatory)
+#   field-separator (mandatory)
+#
+# default output is to stdout
+# default newline is LF
+# default format of input-file is delimited
+# default upper bound for memory is (1024 * 1024) bytes
+regiment sort --key 5 --number-columns 15 --field-separator ',' input-file
+regiment sort -k 5 -c 15 -f ',' input-file
 
 # specify multiple columns to sort on
-regiment sort --key 1 --key 5 input-file output-dir
-regiment sort -k 1 -k 5 input-file output-dir
-
-# explicitly specify field separator
-regiment sort --field-separator ',' --key 1 input-file output-dir
-regiment sort -F ',' -k 1 input-file output-dir
+regiment sort --key 1 --key 5 --number-columns 15 --field-separator ',' input-file
+regiment sort -k 1 -k 5 -c 15 -f ',' input-file
 
 # explicitly specify that format of input-file is standardized
-regiment sort --format standardized --key 1 input-file output-dir
-regiment sort -f standardized -k 1 input-file output-dir
+regiment sort --key 1 --number-columns 15 --standardized --field-separator ',' input-file
+regiment sort -k 1 -c 15 -f ',' --standardized input-file
 
 # explicitly specify memory upper bound of 2 GB (default unit is MB - use G to specify GB)
-regiment sort --mem-max 2G input-file output-dir
-regiment sort -m 2G input-file output-dir
-regiment sort -m 2000 input-file output-dir
+regiment sort --mem-max 2G --key 1 --number-columns 15 --field-separator ',' input-file
+regiment sort -m 2G -k 1 -c 15 -f ',' input-file
+regiment sort -m 2000 -k 1 -c 15 -f ',' input-file
+
+# explicitly specify newline -- one of LF, CR or CRLF (defaults to LF)
+regiment sort --key 5 --number-columns 15 --crlf --field-separator ',' input-file
+regiment sort -k 5 -c 15 -f ',' --crlf input-file
+
+# explicitly specify path to output file -- defaults to stdout
+regiment sort --key 5 --number-columns 15 --field-separator ',' --output "path/to/output-file" input-file
+regiment sort -k 5 -c 15 -f ',' -o "path/to/output-file" input-file
 
 # all the things
-regiment sort -F ',' -k 1 -k 4 -k 5 -m 10G -f delimited input-file output-dir
+regiment sort -f ',' -k 1 -k 4 -k 5 -c 26 -m 10G --crlf --standardized -o "path/to/output-file" input-file
 ```
-
-

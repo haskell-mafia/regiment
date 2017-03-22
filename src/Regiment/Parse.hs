@@ -16,7 +16,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as L
 import qualified Data.Maybe as DM
-import           Data.String (String)
+import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as Boxed
 import qualified Data.Vector.Algorithms.Tim as Tim
@@ -26,8 +26,9 @@ import           P
 import qualified Parsley.Xsv.Parser as Parsley
 
 import           Regiment.Data
-import           Regiment.IO
 import           Regiment.Serial
+import           Regiment.Vanguard.Base
+import           Regiment.Vanguard.IO
 
 import           System.IO (IO, IOMode (..))
 import qualified System.IO as IO
@@ -40,7 +41,8 @@ import qualified X.Data.Vector.Grow as Grow
 data RegimentParseError =
     RegimentParseKeyNotFound
   | RegimentParseIONullWrite
-  | RegimentParseVectorToKPFailed String
+  | RegimentParseVectorToKPFailed (Boxed.Vector BS.ByteString)
+  | RegimentParseMergeError (RegimentMergeError RegimentMergeIOError)
   deriving (Eq, Show)
 
 toTempFiles ::
@@ -48,25 +50,25 @@ toTempFiles ::
   -> TempDirectory
   -> Format
   -> [SortColumn]
-  -> Int
+  -> MemoryLimit
   -> EitherT RegimentParseError IO ()
-toTempFiles (InputFile inn) tmpDir f sc cap = do
+toTempFiles (InputFile inn) tmpDir f sc (MemoryLimit cap) = do
   let
       p = Parsley.compile f
-      innChunkSize = 1024 * 1024
+      innChunkSize = 1024 * 1024 -- TODO: make this configurable?
   newEitherT . IO.withFile inn ReadMode $ \h -> runEitherT $ do
-    acc <- Grow.new cap
+    acc <- Grow.new 1024
 
     let
-      go :: Int -> Int -> Int -> BS.ByteString -> EitherT RegimentParseError IO ()
-      go !counter !drops !part bytes = do
+      go :: Int -> Int -> Int -> Int -> BS.ByteString -> EitherT RegimentParseError IO ()
+      go !counter !drops !partNum !memCounter bytes = do
         case BS.null bytes of
           True -> do
             liftIO (IO.hIsEOF h) >>= \eof -> case eof of
               True -> do
-                flushVector acc part tmpDir
+                flushVector acc partNum tmpDir
               False ->
-                liftIO (BS.hGetSome h innChunkSize) >>= go counter drops part
+                liftIO (BS.hGetSome h innChunkSize) >>= go counter drops partNum memCounter
           False ->
             Parsley.runRowParser
               p
@@ -74,34 +76,38 @@ toTempFiles (InputFile inn) tmpDir f sc cap = do
               (Parsley.More $ \moar -> do
                 liftIO (BS.hGetSome h innChunkSize) >>= moar)
               (Parsley.Failure $ \rest err ->
-                liftIO (T.putStrLn (Parsley.renderRowParseError err)) >> go counter (drops + 1) part rest)
+                liftIO (T.putStrLn (Parsley.renderRowParseError err))
+                  >> go counter (drops + 1) partNum memCounter rest)
               (Parsley.Success $ \rest fields ->
                 let
-                  parsed = BS.take (BS.length bytes - BS.length rest) bytes
-                  sko = selectSortKeys parsed (Parsley.getFields fields) sc
+                  bytesParsed = BS.take (BS.length bytes - BS.length rest) bytes
+                  sko = selectSortKeys bytesParsed (Parsley.getFields fields) sc
                 in
                   case sko of
                     Left _ ->
-                      go counter (drops + 1) part rest
+                      go counter (drops + 1) partNum memCounter rest
                     Right keysWithOriginal -> do
-                      l <- Grow.length acc
-                      if l + (Boxed.length keysWithOriginal) > cap
+                      let
+                        mKeysWithOriginal =
+                          Boxed.foldl (\s bs -> s + BS.length bs) 0 keysWithOriginal
+
+                      if memCounter + mKeysWithOriginal > cap
                         then do
-                          flushVector acc part tmpDir
+                          flushVector acc partNum tmpDir
                           Grow.add acc keysWithOriginal
-                          go (counter + 1) drops (part + 1) rest
+                          go (counter + 1) drops (partNum + 1) mKeysWithOriginal rest
                         else do
                           Grow.add acc keysWithOriginal
-                          go (counter + 1) drops part rest)
+                          go (counter + 1) drops partNum (memCounter + mKeysWithOriginal) rest)
 
-    liftIO (BS.hGetSome h innChunkSize) >>= go (0 :: Int) (0 :: Int) (0 :: Int)
+    liftIO (BS.hGetSome h innChunkSize) >>= go (0 :: Int) (0 :: Int) (0 :: Int) (0 :: Int)
 
 selectSortKeys ::
      BS.ByteString
   -> (Boxed.Vector BS.ByteString)
   -> [SortColumn]
   -> Either RegimentParseError (Boxed.Vector BS.ByteString)
-selectSortKeys unparsed parsed sortColumns =
+selectSortKeys bytes parsed sortColumns =
   let
     maybeSortkeys = L.map (\sc -> parsed Boxed.!? (sortColumn sc)) sortColumns
     ks = DM.catMaybes maybeSortkeys
@@ -110,7 +116,7 @@ selectSortKeys unparsed parsed sortColumns =
     case keyNotFound of
       True -> Left RegimentParseKeyNotFound
       -- returns a vector consisting of keys and payload
-      False -> Right $ (Boxed.fromList ks) Boxed.++ (Boxed.singleton unparsed)
+      False -> Right $ (Boxed.fromList ks) Boxed.++ (Boxed.singleton bytes)
 
 flushVector :: Grow.Grow Boxed.MVector (PrimState IO) (Boxed.Vector BS.ByteString)
             -> Int
@@ -121,7 +127,7 @@ flushVector acc counter (TempDirectory tmp) = do
   Tim.sort mv
   (v :: Boxed.Vector (Boxed.Vector BS.ByteString)) <- Grow.unsafeFreeze acc
   -- write to TempFile
-  newEitherT . IO.withFile (tmp </> (show counter)) WriteMode $ \out -> do
+  newEitherT . IO.withFile (tmp </> (T.unpack $ renderIntegral counter)) WriteMode $ \out -> do
     runEitherT $ writeChunk out v
   -- done using 'v'
   Grow.clear acc
@@ -136,7 +142,7 @@ writeChunk h vs =
       let
         maybeKp = vecToKP bs
       case maybeKp of
-        Nothing -> left . RegimentParseVectorToKPFailed $ show bs
+        Nothing -> left $ RegimentParseVectorToKPFailed bs
         Just kp -> do
           liftIO $ writeCursor h kp
           if Boxed.null tl
@@ -147,3 +153,23 @@ writeCursor :: IO.Handle -> KeyedPayload -> IO ()
 writeCursor h kp = do
   liftIO $ Builder.hPutBuilder h (Builder.int32LE . sizeKeyedPayload $ kp)
   liftIO $ Builder.hPutBuilder h (bKeyedPayload kp)
+
+
+vecToKP :: Boxed.Vector BS.ByteString -> Maybe KeyedPayload
+vecToKP vbs =
+  -- expected format of Vector
+  -- [k_1,k_2,...,k_n,payload] where k_i are sortkeys
+  -- expect at least one sortkey
+  let
+    l = Boxed.length vbs
+  in
+    if l > 1
+      then
+        let
+          p = Boxed.last vbs
+          sks = Key <$> Boxed.take (l-1) vbs
+        in
+          Just $ KeyedPayload sks p
+    else
+      Nothing
+

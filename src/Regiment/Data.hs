@@ -2,10 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.Data (
     InputFile (..)
-  , OutputDirectory (..)
+  , OutputFile (..)
   , SortColumn (..)
   , MemoryLimit (..)
-  , NumSortKeys (..)
+  , NumColumns (..)
   , Cursor (..)
   , Vanguard (..)
   , TempDirectory (..)
@@ -37,9 +37,9 @@ newtype InputFile =
     inputFile :: FilePath
   } deriving (Eq, Show)
 
-newtype OutputDirectory =
-  OutputDirectory {
-    outputDirectory :: FilePath
+newtype OutputFile =
+  OutputFile {
+    outputFile :: FilePath
   } deriving (Eq, Show)
 
 newtype TempDirectory =
@@ -57,9 +57,9 @@ newtype MemoryLimit =
     memoryLimit :: Int
   } deriving (Eq, Show, Ord)
 
-newtype NumSortKeys =
-  NumSortKeys {
-    numSortKeys :: Int
+newtype NumColumns =
+  NumColumns {
+    numColumns :: Int
   } deriving (Eq, Show, Ord)
 
 newtype Key =
