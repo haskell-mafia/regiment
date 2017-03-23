@@ -47,3 +47,5 @@ regiment sort -k 5 -c 15 -f ',' -o "path/to/output-file" input-file
 # all the things
 regiment sort -f ',' -k 1 -k 4 -k 5 -c 26 -m 10G --crlf --standardized -o "path/to/output-file" input-file
 ```
+
+Note: `regiment` requires local storage roughly equivalent to the size of the inputs, and follows unix `TMPDIR` conventions for that storage.

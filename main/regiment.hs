@@ -129,21 +129,21 @@ lfP :: Parser Newline
 lfP =
   flag' LF . mconcat $ [
       long "lf"
-    , help "The input file uses \n to terminate lines (default)."
+    , help "The input file uses \\n to terminate lines (default)."
     ]
 
 crP :: Parser Newline
 crP =
   flag' CR . mconcat $ [
       long "cr"
-    , help "The input file uses \r to terminate lines."
+    , help "The input file uses \\r to terminate lines."
     ]
 
 crlfP :: Parser Newline
 crlfP =
   flag' CRLF . mconcat $ [
       long "crlf"
-    , help "The input file uses \r\n to terminate lines."
+    , help "The input file uses \\r\\n to terminate lines."
     ]
 
 toChar :: Text -> Maybe Word8
