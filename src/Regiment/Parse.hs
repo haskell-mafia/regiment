@@ -125,7 +125,7 @@ flushVector :: Grow.Grow Boxed.MVector (PrimState IO) (Boxed.Vector BS.ByteStrin
 flushVector acc counter (TempDirectory tmp) = do
   mv <- Grow.unsafeElems acc
   Tim.sort mv
-  (v :: Boxed.Vector (Boxed.Vector BS.ByteString)) <- Grow.unsafeFreeze acc
+  (v :: Boxed.Vector (Boxed.Vector BS.ByteString)) <- Grow.freeze acc
   -- write to TempFile
   newEitherT . IO.withFile (tmp </> (T.unpack $ renderIntegral counter)) WriteMode $ \out -> do
     runEitherT $ writeChunk out v
