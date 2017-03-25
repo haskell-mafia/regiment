@@ -8,7 +8,6 @@ module Regiment.Vanguard.List (
   , runVanguardList
   ) where
 
-import           Control.Monad.Primitive (PrimState, PrimMonad)
 import           Control.Monad.ST (runST, ST)
 import           Control.Monad.Trans.Class (lift)
 
@@ -36,11 +35,11 @@ writePayloadToList :: ST.STRef s [BS.ByteString] -> BS.ByteString -> ST s ()
 writePayloadToList lst p =
   ST.modifySTRef lst (\lp -> lp <> [p])
 
-formVanguardList :: (PrimMonad (ST s))
+formVanguardList :: (Monad (ST s))
                  => [ST.STRef s [KeyedPayload]]
                  -> EitherT
                     (RegimentMergeError x)
-                    (ST s) (Vanguard (PrimState (ST s)) (ST.STRef s [KeyedPayload]))
+                    (ST s) (Vanguard (ST.STRef s [KeyedPayload]))
 formVanguardList strkps =
   formVanguard readCursorList strkps
 

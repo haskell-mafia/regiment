@@ -21,9 +21,9 @@ module Regiment.Data (
 
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import qualified Data.Heap as DH
 import           Data.Vector (Vector)
 import qualified Data.Vector as Boxed
-import qualified Data.Vector.Mutable as MBoxed
 import           Data.Word (Word8)
 
 import           P
@@ -69,8 +69,8 @@ newtype Key =
 
 data KeyedPayload =
   KeyedPayload {
-    keys :: Vector Key
-  , payload :: ByteString
+    keys :: !(Vector Key)
+  , payload :: !ByteString
   } deriving (Eq, Show)
 
 instance Ord KeyedPayload where
@@ -116,10 +116,10 @@ data Cursor a =
   | EOF
   deriving (Show)
 
-data Vanguard s a =
+newtype Vanguard a =
   Vanguard {
-    vanguard :: MBoxed.MVector s (Cursor a)
-  }
+    unVanguard :: DH.Heap (Cursor a)
+  } deriving (Eq, Show)
 
 instance Eq (Cursor a) where
   (==) x y = compare x y == EQ
