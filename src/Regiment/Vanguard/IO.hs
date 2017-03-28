@@ -6,11 +6,9 @@ module Regiment.Vanguard.IO (
   , formVanguardIO
   , readKeyedPayloadIO
   , runVanguardIO
-  , updateMinCursorIO
   ) where
 
 import           Control.Monad.IO.Class (liftIO, MonadIO)
-import           Control.Monad.Primitive (PrimState)
 
 import qualified Data.Binary.Get as Get
 import qualified Data.ByteString as BS
@@ -61,7 +59,7 @@ readCursorIO :: MonadIO m
 readCursorIO h =
   readCursor readKeyedPayloadIO h
 
-runVanguardIO :: Vanguard (PrimState IO) Handle
+runVanguardIO :: Vanguard Handle
               -> Handle
               -> EitherT (RegimentMergeError RegimentMergeIOError) IO ()
 runVanguardIO v out =
@@ -70,16 +68,9 @@ runVanguardIO v out =
 formVanguardIO :: [Handle]
                -> EitherT
                   (RegimentMergeError RegimentMergeIOError)
-                  IO (Vanguard (PrimState IO) Handle)
+                  IO (Vanguard Handle)
 formVanguardIO handles = do
   formVanguard readKeyedPayloadIO handles
-
-updateMinCursorIO :: Vanguard (PrimState IO) Handle
-                  -> EitherT
-                     (RegimentMergeError RegimentMergeIOError)
-                     IO (Cursor Handle, Vanguard (PrimState IO) Handle)
-updateMinCursorIO v =
-  updateMinCursor readKeyedPayloadIO v
 
 peekInt32 :: ByteString -> IO (Maybe Int32)
 peekInt32 (PS fp off len) =
