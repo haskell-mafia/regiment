@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.Vanguard.IO (
     RegimentMergeIOError (..)
+  , renderRegimentMergeIOError
   , readCursorIO
   , formVanguardIO
   , readKeyedPayloadIO
@@ -15,6 +16,7 @@ import qualified Data.ByteString as BS
 import           Data.ByteString.Internal (ByteString(..))
 import qualified Data.ByteString.Lazy as Lazy
 import           Data.String (String)
+import qualified Data.Text as T
 
 import           Foreign.Storable (Storable(..))
 import           Foreign.ForeignPtr (withForeignPtr)
@@ -35,9 +37,18 @@ data RegimentMergeIOError =
   | RegimentMergeIOByteStringConversionFailed String
   deriving (Eq, Show)
 
-readKeyedPayloadIO :: MonadIO m
-                   => IO.Handle
-                   -> EitherT RegimentMergeIOError m (Maybe KeyedPayload)
+renderRegimentMergeIOError :: RegimentMergeIOError -> Text
+renderRegimentMergeIOError err =
+  case err of
+    RegimentMergeIOReadKeysFailed ->
+      "Regiment Merge IO Error: Failed to read keys from temp file."
+    RegimentMergeIOByteStringConversionFailed s ->
+      "Regiment Merge IO Error: Failed to extract KeyedPayload from ByteString. Error: " <> T.pack s
+
+readKeyedPayloadIO ::
+     MonadIO m
+  => IO.Handle
+  -> EitherT RegimentMergeIOError m (Maybe KeyedPayload)
 readKeyedPayloadIO h = do
   isEOF <- liftIO $ IO.hIsEOF h
   if isEOF
@@ -53,22 +64,23 @@ readKeyedPayloadIO h = do
             Left e -> left e
             Right kp -> return $ Just kp
 
-readCursorIO :: MonadIO m
-             => IO.Handle
-             -> EitherT (RegimentMergeError RegimentMergeIOError) m (Cursor Handle)
+readCursorIO ::
+     MonadIO m
+  => IO.Handle
+  -> EitherT (RegimentMergeError RegimentMergeIOError) m (Cursor Handle)
 readCursorIO h =
   readCursor readKeyedPayloadIO h
 
-runVanguardIO :: Vanguard Handle
-              -> Handle
-              -> EitherT (RegimentMergeError RegimentMergeIOError) IO ()
+runVanguardIO ::
+     Vanguard Handle
+  -> Handle
+  -> EitherT (RegimentMergeError RegimentMergeIOError) IO ()
 runVanguardIO v out =
   runVanguard v readKeyedPayloadIO (BS.hPut out)
 
-formVanguardIO :: [Handle]
-               -> EitherT
-                  (RegimentMergeError RegimentMergeIOError)
-                  IO (Vanguard Handle)
+formVanguardIO ::
+     [Handle]
+  -> EitherT (RegimentMergeError RegimentMergeIOError) IO (Vanguard Handle)
 formVanguardIO handles = do
   formVanguard readKeyedPayloadIO handles
 
@@ -87,4 +99,3 @@ bsToKP bs =
       Left $ RegimentMergeIOByteStringConversionFailed e
     Right (_, _, x) ->
       Right x
-
