@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.Vanguard.Base (
     RegimentMergeError (..)
+  , renderRegimentMergeError
   , readCursor
   , formVanguard
   , runVanguard
@@ -27,6 +28,14 @@ readCursor :: Monad m
            => (a -> EitherT x m (Maybe KeyedPayload))
            -> a
            -> EitherT (RegimentMergeError x) m (Cursor a)
+renderRegimentMergeError :: (e -> Text) -> (RegimentMergeError e) -> Text
+renderRegimentMergeError render err =
+  case err of
+    RegimentMergeCursorError e ->
+      "Regiment Merge Error: failed to read cursor " <> (render e)
+    RegimentMergeVanguardEmptyError ->
+      "Regiment Merge Error: Cannot run an empty Vanguard."
+
 readCursor reader a' = do
   bimapEitherT RegimentMergeCursorError (maybe EOF (NonEmpty a')) (reader a')
 

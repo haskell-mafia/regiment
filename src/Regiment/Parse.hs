@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Regiment.Parse (
     RegimentParseError (..)
+  , renderRegimentParseError
   , toTempFiles
   , selectSortKeys
   , writeCursor
@@ -34,16 +35,28 @@ import           System.IO (IO, IOMode (..))
 import qualified System.IO as IO
 import           System.FilePath ((</>))
 
-import           X.Control.Monad.Trans.Either (EitherT, left, newEitherT, runEitherT)
+import           X.Control.Monad.Trans.Either (EitherT, left, runEitherT, newEitherT, hoistEither)
 import qualified X.Data.Vector as Boxed
 import qualified X.Data.Vector.Grow as Grow
 
 data RegimentParseError =
     RegimentParseKeyNotFound
   | RegimentParseIONullWrite
-  | RegimentParseVectorToKPFailed (Boxed.Vector BS.ByteString)
+  | RegimentParseVectorToKPFailed Text
   | RegimentParseMergeError (RegimentMergeError RegimentMergeIOError)
   deriving (Eq, Show)
+
+renderRegimentParseError :: RegimentParseError -> Text
+renderRegimentParseError err =
+  case err of
+    RegimentParseKeyNotFound ->
+      "Regiment Parse Error: sort keys not found in vector of parsed fields"
+    RegimentParseIONullWrite ->
+      "Regiment Parse Error: write chunk called with a null vector"
+    RegimentParseVectorToKPFailed t ->
+      "Regiment Parse Error: Vector could not be converted to KeyedPayload. Reason: " <> t
+    RegimentParseMergeError e ->
+      renderRegimentMergeError renderRegimentMergeIOError e
 
 toTempFiles ::
      InputFile
@@ -139,15 +152,11 @@ writeChunk h vs =
   case Boxed.uncons vs of
     Nothing -> left RegimentParseIONullWrite
     Just (bs, tl) -> do
-      let
-        maybeKp = vecToKP bs
-      case maybeKp of
-        Nothing -> left $ RegimentParseVectorToKPFailed bs
-        Just kp -> do
-          liftIO $ writeCursor h kp
-          if Boxed.null tl
-            then return ()
-            else writeChunk h tl
+      kp <- hoistEither $ vecToKP bs
+      liftIO $ writeCursor h kp
+      if Boxed.null tl
+        then return ()
+        else writeChunk h tl
 
 writeCursor :: IO.Handle -> KeyedPayload -> IO ()
 writeCursor h kp = do
@@ -155,21 +164,23 @@ writeCursor h kp = do
   liftIO $ Builder.hPutBuilder h (bKeyedPayload kp)
 
 
-vecToKP :: Boxed.Vector BS.ByteString -> Maybe KeyedPayload
+vecToKP :: Boxed.Vector BS.ByteString -> Either RegimentParseError KeyedPayload
 vecToKP vbs =
   -- expected format of Vector
-  -- [k_1,k_2,...,k_n,payload] where k_i are sortkeys
-  -- expect at least one sortkey
+  -- [k_1,k_2,...,k_n,payload] where k_i are sort keys
+  -- expect n >= 1, thus length vbs >= 2
   let
     l = Boxed.length vbs
   in
-    if l > 1
-      then
+    case l of
+      0 ->
+        Left . RegimentParseVectorToKPFailed $ "Empty vector"
+      1 ->
+        Left . RegimentParseVectorToKPFailed $ "Singleton vector: " <> (T.pack . show $ Boxed.head vbs)
+      _ ->
         let
           p = Boxed.last vbs
           sks = Key <$> Boxed.take (l-1) vbs
         in
-          Just $ KeyedPayload sks p
-    else
-      Nothing
+          Right $ KeyedPayload sks p
 

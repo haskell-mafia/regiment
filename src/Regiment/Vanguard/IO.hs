@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Regiment.Vanguard.IO (
     RegimentMergeIOError (..)
+  , renderRegimentMergeIOError
   , readCursorIO
   , formVanguardIO
   , readKeyedPayloadIO
@@ -15,6 +16,7 @@ import qualified Data.ByteString as BS
 import           Data.ByteString.Internal (ByteString(..))
 import qualified Data.ByteString.Lazy as Lazy
 import           Data.String (String)
+import qualified Data.Text as T
 
 import           Foreign.Storable (Storable(..))
 import           Foreign.ForeignPtr (withForeignPtr)
@@ -38,6 +40,14 @@ data RegimentMergeIOError =
 readKeyedPayloadIO :: MonadIO m
                    => IO.Handle
                    -> EitherT RegimentMergeIOError m (Maybe KeyedPayload)
+renderRegimentMergeIOError :: RegimentMergeIOError -> Text
+renderRegimentMergeIOError err =
+  case err of
+    RegimentMergeIOReadKeysFailed ->
+      "Regiment Merge IO Error: Failed to read keys from temp file."
+    RegimentMergeIOByteStringConversionFailed s ->
+      "Regiment Merge IO Error: Failed to extract KeyedPayload from ByteString. Error: " <> T.pack s
+
 readKeyedPayloadIO h = do
   isEOF <- liftIO $ IO.hIsEOF h
   if isEOF
