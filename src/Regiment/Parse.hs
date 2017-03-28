@@ -131,10 +131,11 @@ selectSortKeys bytes parsed sortColumns =
       -- returns a vector consisting of keys and payload
       False -> Right $ (Boxed.fromList ks) Boxed.++ (Boxed.singleton bytes)
 
-flushVector :: Grow.Grow Boxed.MVector (PrimState IO) (Boxed.Vector BS.ByteString)
-            -> Int
-            -> TempDirectory
-            -> EitherT RegimentParseError IO ()
+flushVector ::
+     Grow.Grow Boxed.MVector (PrimState IO) (Boxed.Vector BS.ByteString)
+  -> Int
+  -> TempDirectory
+  -> EitherT RegimentParseError IO ()
 flushVector acc counter (TempDirectory tmp) = do
   mv <- Grow.unsafeElems acc
   Tim.sort mv
@@ -145,9 +146,10 @@ flushVector acc counter (TempDirectory tmp) = do
   -- done using 'v'
   Grow.clear acc
 
-writeChunk :: IO.Handle
-           -> Boxed.Vector (Boxed.Vector BS.ByteString)
-           -> EitherT RegimentParseError IO ()
+writeChunk ::
+     IO.Handle
+  -> Boxed.Vector (Boxed.Vector BS.ByteString)
+  -> EitherT RegimentParseError IO ()
 writeChunk h vs =
   case Boxed.uncons vs of
     Nothing -> left RegimentParseIONullWrite

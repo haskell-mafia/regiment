@@ -24,10 +24,6 @@ data RegimentMergeError e =
   | RegimentMergeVanguardEmptyError
   deriving (Eq, Show)
 
-readCursor :: Monad m
-           => (a -> EitherT x m (Maybe KeyedPayload))
-           -> a
-           -> EitherT (RegimentMergeError x) m (Cursor a)
 renderRegimentMergeError :: (e -> Text) -> (RegimentMergeError e) -> Text
 renderRegimentMergeError render err =
   case err of
@@ -36,34 +32,39 @@ renderRegimentMergeError render err =
     RegimentMergeVanguardEmptyError ->
       "Regiment Merge Error: Cannot run an empty Vanguard."
 
+readCursor ::
+     Monad m
+  => (a -> EitherT x m (Maybe KeyedPayload))
+  -> a
+  -> EitherT (RegimentMergeError x) m (Cursor a)
 readCursor reader a' = do
   bimapEitherT RegimentMergeCursorError (maybe EOF (NonEmpty a')) (reader a')
 
-
-formVanguard :: Monad m
-             => (a -> EitherT x m (Maybe KeyedPayload))
-             -> [a]
-             -> EitherT (RegimentMergeError x) m (Vanguard a)
+formVanguard ::
+     Monad m
+  => (a -> EitherT x m (Maybe KeyedPayload))
+  -> [a]
+  -> EitherT (RegimentMergeError x) m (Vanguard a)
 formVanguard reader l = do
   v <- mapM (readCursor reader) l
   return . Vanguard $ DH.fromList v
 
-
-updateVanguard :: Monad m
-               => a
-               -> Vanguard a
-               -> (a -> EitherT x m (Maybe KeyedPayload))
-               -> EitherT (RegimentMergeError x) m (Vanguard a)
+updateVanguard ::
+     Monad m
+  => a
+  -> Vanguard a
+  -> (a -> EitherT x m (Maybe KeyedPayload))
+  -> EitherT (RegimentMergeError x) m (Vanguard a)
 updateVanguard h v reader = do
   nextCursor <- readCursor reader h
   return . Vanguard . DH.insert nextCursor $ unVanguard v
 
-
-runVanguard :: Monad m
-            => Vanguard a
-            -> (a -> EitherT x m (Maybe KeyedPayload))
-            -> (BS.ByteString -> m ())
-            -> EitherT (RegimentMergeError x) m ()
+runVanguard ::
+     Monad m
+  => Vanguard a
+  -> (a -> EitherT x m (Maybe KeyedPayload))
+  -> (BS.ByteString -> m ())
+  -> EitherT (RegimentMergeError x) m ()
 runVanguard (Vanguard v) reader writer = do
   when (DH.null v) $
     left $ RegimentMergeVanguardEmptyError
