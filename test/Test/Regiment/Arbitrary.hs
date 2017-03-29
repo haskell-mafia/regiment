@@ -128,4 +128,9 @@ genNonNullSeparator =
 
 genRestrictedFormat :: Separator -> Jack Format
 genRestrictedFormat sep =
-  arbitrary `suchThat` (\fmt -> (formatColumnCount fmt) > 0 && (formatKind fmt) == Delimited && (formatSeparator fmt) == sep && (formatNewline fmt) == LF)
+  arbitrary `suchThat` (\fmt ->
+                          (formatColumnCount fmt) > 0
+                       && (formatKind fmt) == Delimited
+                       && (formatSeparator fmt) == sep
+                       && (formatNewline fmt) == LF
+                       )

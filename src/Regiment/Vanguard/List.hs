@@ -21,8 +21,7 @@ import           Regiment.Vanguard.Base
 
 import           X.Control.Monad.Trans.Either (EitherT, runEitherT)
 
-readCursorList :: ST.STRef s [KeyedPayload]
-               -> EitherT x (ST s) (Maybe KeyedPayload)
+readCursorList :: ST.STRef s [KeyedPayload] -> EitherT x (ST s) (Maybe KeyedPayload)
 readCursorList lkp = do
   kps <- lift $ ST.readSTRef lkp
   case kps of
@@ -35,11 +34,10 @@ writePayloadToList :: ST.STRef s [BS.ByteString] -> BS.ByteString -> ST s ()
 writePayloadToList lst p =
   ST.modifySTRef lst (\lp -> lp <> [p])
 
-formVanguardList :: (Monad (ST s))
-                 => [ST.STRef s [KeyedPayload]]
-                 -> EitherT
-                    (RegimentMergeError x)
-                    (ST s) (Vanguard (ST.STRef s [KeyedPayload]))
+formVanguardList ::
+     Monad (ST s)
+  => [ST.STRef s [KeyedPayload]]
+  -> EitherT (RegimentMergeError x) (ST s) (Vanguard (ST.STRef s [KeyedPayload]))
 formVanguardList strkps =
   formVanguard readCursorList strkps
 

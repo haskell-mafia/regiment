@@ -45,6 +45,3 @@ getKeyedPayload = do
   KeyedPayload
     <$> getKeys (bcount - 1)
     <*> getSizedPrefixedBytes
-
-
-

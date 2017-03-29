@@ -11,8 +11,6 @@ import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Resource (MonadResource (..))
 import qualified Control.Monad.Trans.Resource as R
 
-import           Data.String (String)
-
 import           P
 
 import           Regiment.Data
@@ -28,29 +26,28 @@ import           System.IO.Temp (withSystemTempDirectory)
 import           X.Control.Monad.Trans.Either (EitherT, newEitherT, mapEitherT, runEitherT, firstEitherT)
 
 data RegimentIOError =
-    RegimentIOReadKeysFailed
-  | RegimentIOReadPastEOF
-  | RegimentIONullWrite
-  | RegimentIOBytestringParseFailed String
-  | RegimentIOUnpackFailed
-  | RegimentIOMinOfEmptyVector
-  | RegimentIOParseError RegimentParseError
+    RegimentIOParseError RegimentParseError
   | RegimentIOMergeError (RegimentMergeError RegimentMergeIOError)
   deriving (Eq, Show)
 
 renderRegimentIOError :: RegimentIOError -> Text
-renderRegimentIOError _ =
-  "TODO"
+renderRegimentIOError err =
+  case err of
+    RegimentIOParseError e ->
+      renderRegimentParseError e
+    RegimentIOMergeError e ->
+      renderRegimentMergeError renderRegimentMergeIOError e
 
-regiment :: InputFile
-         -> Maybe OutputFile
-         -> [SortColumn]
-         -> FormatKind
-         -> Newline
-         -> NumColumns
-         -> Separator
-         -> MemoryLimit
-         -> EitherT RegimentIOError IO ()
+regiment ::
+     InputFile
+  -> Maybe OutputFile
+  -> [SortColumn]
+  -> FormatKind
+  -> Newline
+  -> NumColumns
+  -> Separator
+  -> MemoryLimit
+  -> EitherT RegimentIOError IO ()
 regiment inn out sc f n nc sep m = do
   let
     fmt =
@@ -66,9 +63,10 @@ regiment inn out sc f n nc sep m = do
         toTempFiles inn (TempDirectory tmp) fmt sc m
         firstT RegimentParseMergeError $ merge (TempDirectory tmp) out
 
-merge :: TempDirectory
-      -> Maybe OutputFile
-      -> EitherT (RegimentMergeError RegimentMergeIOError) IO ()
+merge ::
+     TempDirectory
+  -> Maybe OutputFile
+  -> EitherT (RegimentMergeError RegimentMergeIOError) IO ()
 merge (TempDirectory tmp) out = mapEitherT R.runResourceT  $ do
   fs <- liftIO $ fmap (filter (flip notElem [".", ".."])) $ getDirectoryContents tmp
   handles <- mapM (open ReadMode) $ fmap (tmp </>) fs
