@@ -10,6 +10,8 @@ A command line tool for sorting standardized separated files
 ## Usage
 --------
 
+`sort` a standardized separated file.
+
 ```
 # specify:
 #   column to sort on (mandatory)
@@ -48,4 +50,43 @@ regiment sort -k 5 -c 15 -f ',' -o "path/to/output-file" input-file
 regiment sort -f ',' -k 1 -k 4 -k 5 -c 26 -m 10G --crlf --standardized -o "path/to/output-file" input-file
 ```
 
-Note: `regiment` requires local storage roughly equivalent to the size of the inputs, and follows unix `TMPDIR` conventions for that storage.
+`split` a standardized separated file into a set of temporary files, each of which is sorted,
+and is in regiment's [binary format](doc/temp-file-format.md)
+
+```
+# specify:
+#   same options as for sort (except for --output)
+#   a directory within which to write the sorted splits (mandatory)
+#   NOTE: this directory must not exist, it will be created for you
+regiment split <same opts as sort> --dir "path/to/output-dir" input-file
+regiment split <same opts as sort> -d "path/to/output-dir" input-file
+```
+
+Given the format of an input standardized separated file, merge a set of sorted temporary files
+(in regiment's [binary format](doc/temp-file-format.md)) into an output-file (that has the same format
+as the input standardized separated file).
+
+```
+# specify:
+#   directories containing sorted splits that require merging (typically outputs of running split)
+#   output file (optional) -- defaults to stdout
+regiment merge-tmps dir1 dir2 ... dirn
+
+# explicity specify path to output file -- defaults to stdout
+regiment merge-tmps --output "path/to/output-file" dir1 dir2 ... dirn
+regiment merge-tmps -o "path/to/output-file" dir1 dir2 ... dirn
+```
+
+Relationship between `sort`, `split` and `merge-tmps`
+
+```
+regiment sort -k 1 -c 5 -f ',' --standardized input-file 
+
+generates the same output as
+
+regiment split -k 1 -c 5 -f ',' --standardized -d "/foo/bar/baz" input-file
+regiment merge-tmps "/foo/bar/baz"
+```
+
+Note: `regiment` requires local storage roughly equivalent to the size of the inputs,
+and follows unix `TMPDIR` conventions for that storage.

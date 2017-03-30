@@ -6,7 +6,7 @@ import           DependencyInfo_ambiata_regiment
 
 import qualified Data.Attoparsec.Text as A
 import           Data.Char (ord)
-import           Data.Text as T
+import qualified Data.Text as T
 import           Data.Word (Word8)
 
 import           Options.Applicative
@@ -33,22 +33,44 @@ main = do
       SortCommand inn out nc sc sep m f n ->
         orDie renderRegimentIOError $
           regiment inn out sc f n nc sep m
+      SplitCommand inn nc sc sep m f n tmp ->
+        orDie renderRegimentIOError $ do
+          createDirectory tmp
+          firstT RegimentIOParseError $
+            split inn tmp sc f n nc sep m
+      MergeCommand out dirs ->
+        orDie renderRegimentIOError $
+          mergeDirs dirs out
 
 parser :: Parser Command
 parser =
   subparser $
-    command' "sort" "Sort input file based on sort column(s)."
-      (SortCommand <$> inputFileP
-                   <*> optional outputP
-                   <*> numColumnsP
-                   <*> some sortColumnP
-                   <*> separatorP
-                   <*> memP
-                   <*> formatP
-                   <*> newlineP)
+     command' "sort" "Sort input file based on sort column(s)."
+       (SortCommand <$> inputFileP
+                    <*> optional outputP
+                    <*> numColumnsP
+                    <*> some sortColumnP
+                    <*> separatorP
+                    <*> memP
+                    <*> formatP
+                    <*> newlineP)
+  <> command' "split" "Split input file into sorted chunks (intermediate state of sort)."
+       (SplitCommand <$> inputFileP
+                     <*> numColumnsP
+                     <*> some sortColumnP
+                     <*> separatorP
+                     <*> memP
+                     <*> formatP
+                     <*> newlineP
+                     <*> tempDirectoryArgP)
+  <> command' "merge-tmps" "Merge sorted temp files (output of split)."
+       (MergeCommand <$> optional outputP
+                     <*> some tempDirectoryP)
 
 data Command =
-  SortCommand InputFile (Maybe OutputFile) NumColumns [SortColumn] Separator MemoryLimit FormatKind Newline
+    SortCommand InputFile (Maybe OutputFile) NumColumns [SortColumn] Separator MemoryLimit FormatKind Newline
+  | SplitCommand InputFile NumColumns [SortColumn] Separator MemoryLimit FormatKind Newline TempDirectory
+  | MergeCommand (Maybe OutputFile) [TempDirectory]
   deriving (Eq, Show)
 
 inputFileP :: Parser InputFile
@@ -64,6 +86,22 @@ outputP = OutputFile <$> (strOption $
   <> short 'o'
   <> metavar "FILE"
   <> help "Optional path to output file -- defaults to stdout.")
+
+tempDirectoryP :: Parser TempDirectory
+tempDirectoryP =
+  fmap TempDirectory . strArgument . mconcat $ [
+      metavar "TMP_DIRECTORY"
+    , help "Path to directory containing intermediate sorted files."
+    ]
+
+tempDirectoryArgP :: Parser TempDirectory
+tempDirectoryArgP =
+  fmap TempDirectory . strOption . mconcat $ [
+      long "dir"
+    , short 'd'
+    , metavar "TMP_DIRECTORY"
+    , help "Path to directory to write out intermediate sorted files."
+    ]
 
 sortColumnP :: Parser SortColumn
 sortColumnP =

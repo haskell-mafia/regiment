@@ -37,6 +37,11 @@ prop_runVanguard_unique_keys =
 
 prop_runVanguard_possible_dupe_sortkeys :: Property
 prop_runVanguard_possible_dupe_sortkeys =
+  -- by artificially removing payloads we are able to avoid
+  -- test that runVanguard is the same as DL.sort. Retaining
+  -- payloads means that we have to accomodate differences in
+  -- the ordering of payloads between runVanguard and DL.sort
+  -- when sort keys are exactly the same.
   runVanguardOn genListKPsNoPayload
 
 return []

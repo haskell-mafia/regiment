@@ -112,7 +112,7 @@ countKeyedPayload kp =
 --   └─────────┴─────────┴─────────┘
 
 data Cursor a =
-    NonEmpty a KeyedPayload
+    NonEmpty !a !KeyedPayload
   | EOF
   deriving (Show)
 
