@@ -40,6 +40,35 @@ genKP numKeys =
     <$> Boxed.fromList <$> (vectorOf numKeys genKey)
     <*> genBytes
 
+genRealKP :: Format -> [SortColumn] -> Jack KeyedPayload
+genRealKP fmt sc = do
+  -- gen KeyedPayload using the gens from Parsley so that
+  -- we end up with an actual delimited or standardized payload
+
+  -- assume that sc is legit - i.e of length < formatColumnCount and
+  -- a subset of 1 .. formatColumnCount
+  fields <- vectorOf (formatColumnCount fmt) (genBytes)
+  let
+    sortkeys = DL.map (\i -> Key $ fields DL.!! (sortColumn i)) sc
+  return $ KeyedPayload {
+      keys = Boxed.fromList sortkeys
+    , payload = Parsley.renderRow fmt (Boxed.fromList fields) <> (renderNewline $ formatNewline fmt)
+  }
+
+genListKPsUniqueKeys :: Jack [[KeyedPayload]]
+genListKPsUniqueKeys = do
+  numKeys <- arbitrary `suchThat` (> 0)
+  numLists <- chooseInt (1,10)
+  maxListLength <- arbitrary `suchThat` (> 0)
+  forM [1 .. numLists] $ \i ->
+    genKPsUniqueKeys i numKeys maxListLength
+
+genListKPsNoPayload :: Jack [[KeyedPayload]]
+genListKPsNoPayload = do
+  numKeys <- arbitrary `suchThat` (> 0)
+  numLists <- chooseInt (1,10)
+  vectorOf numLists $ listOfN 0 numLists (genKPNoPayload numKeys)
+
 genKPNoPayload :: Int -> Jack KeyedPayload
 genKPNoPayload numKeys = do
   bs <- vectorOf numKeys genBytes
@@ -50,12 +79,6 @@ genKPNoPayload numKeys = do
       keys = Boxed.fromList ks
     , payload = p
     }
-
-genListKPsNoPayload :: Jack [[KeyedPayload]]
-genListKPsNoPayload = do
-  numKeys <- arbitrary `suchThat` (> 0)
-  numLists <- chooseInt (1,10)
-  vectorOf numLists $ listOfN 0 numLists (genKPNoPayload numKeys)
 
 genKPsUniqueKeys :: Int -> Int -> Int -> Jack [KeyedPayload]
 genKPsUniqueKeys prefix numKeys maxListLength = do
@@ -71,14 +94,6 @@ genKPsUniqueKeys prefix numKeys maxListLength = do
 
   return $ prepend uniquifier <$> kps
 
-genListKPsUniqueKeys :: Jack [[KeyedPayload]]
-genListKPsUniqueKeys = do
-  numKeys <- arbitrary `suchThat` (> 0)
-  numLists <- chooseInt (1,10)
-  maxListLength <- arbitrary `suchThat` (> 0)
-  forM [1 .. numLists] $ \i ->
-    genKPsUniqueKeys i numKeys maxListLength
-
 genCursor :: Int -> Handle -> Jack (Cursor Handle)
 genCursor n h =
   oneof [
@@ -86,8 +101,8 @@ genCursor n h =
     , NonEmpty <$> return h <*> (genKP n)
   ]
 
-genListSortColumns :: Format -> Jack [SortColumn]
-genListSortColumns fmt = do
+genSortColumns :: Format -> Jack [SortColumn]
+genSortColumns fmt = do
   sortcols <- sublistOf [0 .. ((formatColumnCount fmt) - 1)] `suchThat` (not . null)
   return $ SortColumn <$> sortcols
 
@@ -102,20 +117,6 @@ genField fmt =
       Standardized -> do
         genStandardizedField strBSlistOf1 sep
 
-genRealKP :: Format -> [SortColumn] -> Jack KeyedPayload
-genRealKP fmt sc = do
-  -- gen KeyedPayload using the gens from Parsley so that
-  -- we end up with an actual delimited or standardized payload
-
-  -- assume that sc is legit - i.e of length < formatColumnCount and
-  -- a subset of 1 .. formatColumnCount
-  fields <- vectorOf (formatColumnCount fmt) (genField fmt)
-  let
-    sortkeys = DL.map (\i -> Key $ fields DL.!! (sortColumn i)) sc
-  return $ KeyedPayload {
-      keys = Boxed.fromList sortkeys
-    , payload = Parsley.renderRow fmt (Boxed.fromList fields) <> (renderNewline $ formatNewline fmt)
-  }
 
 strBSlistOf1 :: QC.Gen BS.ByteString
 strBSlistOf1 = fmap BSC.pack . QC.listOf1 . QC.elements $
@@ -125,9 +126,17 @@ genNonNullSeparator :: Jack Separator
 genNonNullSeparator =
   arbitrary `suchThat` (\sep -> sep /= (Separator . fromIntegral $ ord '\NUL'))
 
+genFormat :: Jack Format
+genFormat = do
+  sep <- genNonNullSeparator
+  arbitrary `suchThat` (\fmt ->
+                          (formatColumnCount fmt) > 0
+                       && (formatSeparator fmt) == sep
+                       )
 
-genRestrictedFormat :: Separator -> Jack Format
-genRestrictedFormat sep =
+genRestrictedFormat :: Jack Format
+genRestrictedFormat = do
+  sep <- genNonNullSeparator
   arbitrary `suchThat` (\fmt ->
                           (formatColumnCount fmt) > 0
                        && (formatKind fmt) == Delimited

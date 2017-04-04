@@ -52,3 +52,38 @@ $REGIMENT sort -k 5 -c 15 -f ',' -o "path/to/output-file" input-file
 
 # all the things
 $REGIMENT sort -f ',' -k 1 -k 4 -k 5 -c 26 -m 10G --crlf --standardized -o "path/to/output-file" input-file
+
+# split
+$REGIMENT split --key 5 --number-columns 15 --field-separator ','  --dir "path/to/output-dir" input-file 
+$REGIMENT split -k 5 -c 15 -f ',' -d "path/to/output-dir" input-file
+
+# specify multiple columns to sort on
+$REGIMENT split --key 1 --key 5 --number-columns 15 --field-separator ',' --dir "path/to/output-dir" input-file
+$REGIMENT split -k 1 -k 5 -c 15 -f ',' -d "path/to/output-dir" input-file
+
+# explicitly specify that format of input-file is standardized
+$REGIMENT split --standardized --key 1 --number-columns 15 --field-separator ',' --dir "path/to/output-dir" input-file
+$REGIMENT split --standardized -k 1 -c 15 -f ',' -d "path/to/output-dir" input-file
+
+# explicitly specify memory upper bound of 2 GB (default unit is MB - use G to specify GB)
+$REGIMENT split --mem-max 2G --key 1 --number-columns 15 --field-separator ',' --dir "path/to/output-dir" input-file
+$REGIMENT split -m 2G -k 1 -c 15 -f ',' -d "path/to/output-dir" input-file
+$REGIMENT split -m 2000 -k 1 -c 15 -f ',' -d "path/to/output-dir" input-file
+
+# explicitly specify newline -- one of LF, CR or CRLF (defaults to LF)
+$REGIMENT split --key 5 --number-columns 15 --field-separator ',' --crlf --dir "path/to/output-dir" input-file
+$REGIMENT split -k 5 -c 15 -f ',' --crlf --dir "path/to/output-dir" input-file
+
+# all the things
+$REGIMENT split -f ',' -k 1 -k 4 -k 5 -c 26 -m 10G --crlf --standardized -d "/path/to/output-dir" input-file
+
+# merge-tmps
+
+# write to stdout
+$REGIMENT merge-tmps "/path/to/dir1" "/path/to/dir2"
+
+# specify output file
+$REGIMENT merge-tmps --output "path/to/output-file" "/path/to/dir1" "/path/to/dir2"
+$REGIMENT merge-tmps -o "path/to/output-file" "/path/to/dir1" "/path/to/dir2"
+
+

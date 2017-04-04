@@ -25,6 +25,7 @@ import qualified Data.Vector.Algorithms.Tim as Tim
 import           P
 
 import qualified Parsley.Xsv.Parser as Parsley
+import qualified Parsley.Xsv.Render as Parsley
 
 import           Regiment.Data
 import           Regiment.Serial
@@ -93,8 +94,7 @@ toTempFiles (InputFile inn) tmpDir f sc (MemoryLimit cap) = do
                   >> go counter (drops + 1) partNum memCounter rest)
               (Parsley.Success $ \rest fields ->
                 let
-                  bytesParsed = BS.take (BS.length bytes - BS.length rest) bytes
-                  sko = selectSortKeys bytesParsed (Parsley.getFields fields) sc
+                  sko = selectSortKeys fields f sc
                 in
                   case sko of
                     Left _ ->
@@ -116,20 +116,22 @@ toTempFiles (InputFile inn) tmpDir f sc (MemoryLimit cap) = do
     liftIO (BS.hGetSome h innChunkSize) >>= go (0 :: Int) (0 :: Int) (0 :: Int) (0 :: Int)
 
 selectSortKeys ::
-     BS.ByteString
-  -> (Boxed.Vector BS.ByteString)
+     Parsley.Fields
+  -> Format
   -> [SortColumn]
   -> Either RegimentParseError (Boxed.Vector BS.ByteString)
-selectSortKeys bytes parsed sortColumns =
+selectSortKeys fields fmt sortColumns =
   let
+    parsed = Parsley.getFields fields
+    unparsed = Parsley.renderRow fmt parsed <> (Parsley.renderNewline $ formatNewline fmt)
     maybeSortkeys = L.map (\sc -> parsed Boxed.!? (sortColumn sc)) sortColumns
     ks = DM.catMaybes maybeSortkeys
     keyNotFound = and $ L.map isNothing maybeSortkeys
-  in do
+  in
     case keyNotFound of
       True -> Left RegimentParseKeyNotFound
       -- returns a vector consisting of keys and payload
-      False -> Right $ (Boxed.fromList ks) Boxed.++ (Boxed.singleton bytes)
+      False -> Right $ (Boxed.fromList ks) Boxed.++ (Boxed.singleton unparsed)
 
 flushVector ::
      Grow.Grow Boxed.MVector (PrimState IO) (Boxed.Vector BS.ByteString)
@@ -157,7 +159,7 @@ writeChunk h vs =
       kp <- hoistEither $ vecToKP bs
       liftIO $ writeCursor h kp
       if Boxed.null tl
-        then return ()
+        then liftIO $ IO.hFlush h >> return ()
         else writeChunk h tl
 
 writeCursor :: IO.Handle -> KeyedPayload -> IO ()
